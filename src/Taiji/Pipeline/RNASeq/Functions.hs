@@ -7,7 +7,8 @@
 {-# LANGUAGE TemplateHaskell       #-}
 module Taiji.Pipeline.RNASeq.Functions
     ( rnaMkIndex
-    , downloadData
+    , rnaDownloadData
+    , rnaAlign
     , getFastq
     , quantPrep
     , quantification
@@ -47,6 +48,8 @@ import           Scientific.Workflow
 
 import           Taiji.Pipeline.RNASeq.Config
 
+type RNASeqWithSomeFile = RNASeq [Either SomeFile (SomeFile, SomeFile)]
+
 rnaMkIndex :: RNASeqConfig config => () -> WorkflowConfig config (FilePath, FilePath)
 rnaMkIndex _ = do
     genome <- asks (fromJust . _rnaseq_genome_fasta)
@@ -56,20 +59,29 @@ rnaMkIndex _ = do
     liftIO $ (,) <$> starMkIndex "star" dir [genome] anno 100 <*>
         rsemMkIndex rsemIndex anno [genome]
 
-downloadData :: FilePath
-             -> [RNASeq [Either SomeFile (SomeFile, SomeFile)]]
-             -> IO [RNASeq [Either SomeFile (SomeFile, SomeFile)]]
-downloadData dir = traverse.replicates.traverse.files.traverse %%~ download
+rnaAlign :: RNASeqConfig config
+         => ContextData FilePath (MaybePairExp RNASeq '[] '[Pairend] 'Fastq)
+         -> WorkflowConfig config (
+                Either (RNASeq (File '[] 'Bam, File '[] 'Bam))
+                       (RNASeq (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
+rnaAlign (ContextData idx input) = do
+    dir <- asks _rnaseq_output_dir >>= getPath
+    liftIO $ starAlign (dir, "bam") idx (return ()) input
+
+rnaDownloadData :: RNASeqConfig config
+                => [RNASeqWithSomeFile]
+                -> WorkflowConfig config [RNASeqWithSomeFile]
+rnaDownloadData dat = do
+    dir <- asks _rnaseq_output_dir >>= getPath
+    liftIO $ dat & traverse.replicates.traverse.files.traverse %%~ download dir
   where
-    download :: Either SomeFile (SomeFile, SomeFile)
-             -> IO (Either SomeFile (SomeFile, SomeFile))
-    download input@(Left (SomeFile fl)) = if getFileType fl == SRA
+    download dir input@(Left (SomeFile fl)) = if getFileType fl == SRA
         then bimap SomeFile (bimap SomeFile SomeFile) <$>
                 sraToFastq dir (coerce fl :: File '[] 'SRA)
         else return input
-    download x = return x
+    download _ x = return x
 
-getFastq :: ((FilePath, FilePath), [RNASeq [Either SomeFile (SomeFile, SomeFile)]])
+getFastq :: ((FilePath, FilePath), [RNASeqWithSomeFile])
          -> ContextData FilePath [ MaybePairExp RNASeq '[] '[Pairend] 'Fastq ]
 getFastq ((idx,_), inputs) = ContextData idx $ flip concatMap inputs $ \input ->
     fromMaybe (error "A mix of single and pairend fastq was found") $

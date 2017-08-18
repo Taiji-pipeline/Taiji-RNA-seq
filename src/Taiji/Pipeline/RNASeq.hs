@@ -22,15 +22,9 @@ builder = do
         input <- asks _rnaseq_input
         liftIO $ readRNASeq input "RNA-seq"
         |] $ submitToRemote .= Just False
-    nodeS "Download_Data" [| \input -> do
-        dir <- asks _rnaseq_output_dir >>= getPath
-        liftIO $ downloadData dir input
-        |] $ submitToRemote .= Just False
+    nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'getFastq $ submitToRemote .= Just False
-    nodeSharedPS 1 "Align" [| \(ContextData idx input) -> do
-        dir <- asks _rnaseq_output_dir >>= getPath
-        liftIO $ starAlign (dir, "bam") idx (return ()) input
-        |] $ return ()
+    nodeSharedPS 1 "Align" 'rnaAlign $ return ()
     node' "Quant_Prep" 'quantPrep $ submitToRemote .= Just False
     nodeSharedPS 1 "Quant" 'quantification $ return ()
     nodePS 1 "Convert_ID_To_Name" [| \input ->

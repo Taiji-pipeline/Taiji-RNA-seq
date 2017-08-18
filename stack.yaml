@@ -1,5 +1,9 @@
 resolver: nightly-2017-08-08
 
+flags:
+  Taiji-RNA-seq:
+    exe: true
+
 packages:
 - '.'
 - '../SciFlow'

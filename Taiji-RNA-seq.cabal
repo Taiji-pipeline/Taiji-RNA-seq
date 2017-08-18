@@ -13,6 +13,10 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+Flag exe
+  Description: Build executable
+  Default:     False
+
 library
   hs-source-dirs:      src
   exposed-modules:     Taiji.Pipeline.RNASeq.Functions
@@ -36,6 +40,10 @@ library
 
 executable taiji-rna-seq
   hs-source-dirs:      app
+  if flag(exe)
+    buildable: True
+  else
+    buildable: False
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
