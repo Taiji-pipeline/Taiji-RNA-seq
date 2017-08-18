@@ -19,9 +19,15 @@ library
                        Taiji.Pipeline.RNASeq
                        Taiji.Pipeline.RNASeq.Config
   build-depends:       base >= 4.7 && < 5
+                     , bytestring
                      , bio-pipelines
                      , bio-experiments
+                     , bioinformatics-toolkit
+                     , case-insensitive
+                     , double-conversion
+                     , unordered-containers
                      , SciFlow
+                     , data-ordlist
                      , lens
                      , mtl
                      , singletons
