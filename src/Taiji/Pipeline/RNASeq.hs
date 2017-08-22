@@ -36,9 +36,11 @@ builder = do
         in (mergeExps input) & mapped.replicates.mapped.files %~ fun
         |] $ submitToRemote .= Just False
     nodePS 1 "Average" 'averageExpr $ return ()
+    nodeS "Make_Expr_Table" 'mkTable $ return ()
 
     path ["Make_Index", "Read_Input", "Download_Data"]
     ["Make_Index", "Download_Data"] ~> "Get_Fastq"
     path ["Get_Fastq", "Align"]
     ["Make_Index", "Align"] ~> "Quant_Prep"
-    path ["Quant_Prep", "Quant", "Convert_ID_To_Name", "Average_Prep", "Average"]
+    path ["Quant_Prep", "Quant", "Convert_ID_To_Name", "Average_Prep"
+        , "Average", "Make_Expr_Table"]

@@ -14,6 +14,7 @@ module Taiji.Pipeline.RNASeq.Functions
     , quantification
     , geneId2Name
     , averageExpr
+    , mkTable
     ) where
 
 import           Bio.Data.Experiment
@@ -27,6 +28,7 @@ import           Bio.Pipeline.Utils
 import           Bio.RealWorld.GENCODE
 import           Bio.Utils.Misc                    (readDouble)
 import           Control.Lens
+import           Control.Monad                     (forM)
 import           Control.Monad.IO.Class            (liftIO)
 import           Control.Monad.Reader              (asks)
 import           Data.Bifunctor                    (bimap, second)
@@ -151,6 +153,32 @@ averageExpr experiment = do
             combine expr
         return $ replicates .~ [Replicate newFile [] 0] $ experiment
 
+-- | Combine RNA expression data into a table and output
+mkTable :: RNASeqConfig config
+        => [RNASeq (File tags 'Tsv)]
+        -> WorkflowConfig config (Maybe (File '[] 'Tsv))
+mkTable es
+    | null es = return Nothing
+    | otherwise = do
+        outdir <- asks _rnaseq_output_dir >>= getPath
+        let output = outdir ++ "/" ++ "expression_profile.tsv"
+        liftIO $ do
+            dat <- forM es $ \e -> do
+                let [fl] = e^..replicates.folded.files
+                expr <- readExpr $ fl^.location
+                return (fromJust $ e^.groupName, expr)
+            let (expNames, values) = unzip dat
+            B.writeFile output $ B.unlines $
+                B.pack (T.unpack $ T.intercalate "\t" $ "Name" : expNames) :
+                map (\(x,xs) -> B.intercalate "\t" $ original x : map toShortest xs)
+                    (combine values)
+            return $ Just $ location .~ output $ emptyFile
+  where
+    readExpr fl = do
+        c <- B.readFile fl
+        return $ map (\xs -> let [a,b] = B.split '\t' xs in (mk a, readDouble b)) $
+            B.lines c
+
 combine :: [[(CI B.ByteString, Double)]] -> [(CI B.ByteString, [Double])]
 combine xs = flip map names $ \nm -> (nm, map (M.lookupDefault 0.01 nm) xs')
   where
@@ -164,31 +192,3 @@ average [a,b]   = (a + b) / 2
 average [a,b,c] = (a + b + c) / 3
 average xs      = foldl1' (+) xs / fromIntegral (length xs)
 {-# INLINE average #-}
-
-{-
--- | Combine RNA expression data into a table and output
-combineExpression :: FilePath
-                  -> [RNASeq]
-                  -> IO (Maybe FilePath)
-combineExpression output es
-    | null es = return Nothing
-    | otherwise = do
-        dat <- forM es $ \e -> do
-            let [fl] = e^..replicates.folded.filtered ((==0) . (^.number)).
-                    files.folded._Single.
-                    filtered (elem "average gene quantification" . (^.tags))
-            expr <- readExpr $ fl^.location
-            return (fromJust $ e^.groupName, expr)
-        let (expNames, values) = unzip dat
-        B.writeFile output $ B.unlines $
-            B.pack (T.unpack $ T.intercalate "\t" $ "Name" : expNames) :
-            map (\(x,xs) -> B.intercalate "\t" $ original x : map toShortest xs)
-                (combine values)
-        return $ Just output
-  where
-    readExpr fl = do
-        c <- B.readFile fl
-        return $ map (\xs -> let [a,b] = B.split '\t' xs in (mk a, readDouble b)) $
-            B.lines c
-{-# INLINE combineExpression #-}
--}
