@@ -7,6 +7,7 @@ module Taiji.Pipeline.RNASeq (builder) where
 import           Bio.Data.Experiment
 import           Bio.Data.Experiment.Parser
 import           Bio.Pipeline.NGS
+import           Data.Bifunctor                    (bimap)
 import           Control.Lens
 import           Control.Monad.IO.Class          (liftIO)
 import           Control.Monad.Reader            (asks)
@@ -17,16 +18,18 @@ import           Taiji.Pipeline.RNASeq.Functions
 
 builder :: Builder ()
 builder = do
-    nodeS "Make_Index" 'rnaMkIndex $ return ()
     nodeS "Read_Input" [| \_ -> do
         input <- asks _rnaseq_input
         liftIO $ readRNASeq input "RNA-seq"
         |] $ submitToRemote .= Just False
     nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'getFastq $ submitToRemote .= Just False
-    nodeSharedPS 1 "Align" 'rnaAlign $ return ()
-    node' "Quant_Prep" 'quantPrep $ submitToRemote .= Just False
-    nodeSharedPS 1 "Quant" 'quantification $ return ()
+    nodeS "Make_Index" 'rnaMkIndex $ return ()
+    nodePS 1 "Align" 'rnaAlign $ return ()
+    nodePS 1 "Quant" [| \input -> do
+        let fun x = x & replicates.mapped.files %~ fst
+        quantification $ bimap fun fun input
+        |] $ return ()
     nodePS 1 "Convert_ID_To_Name" [| \input ->
         geneId2Name (input & replicates.mapped.files %~ fst)
         |] $ return ()
@@ -38,9 +41,5 @@ builder = do
     nodePS 1 "Average" 'averageExpr $ return ()
     nodeS "Make_Expr_Table" 'mkTable $ return ()
 
-    path ["Make_Index", "Read_Input", "Download_Data"]
-    ["Make_Index", "Download_Data"] ~> "Get_Fastq"
-    path ["Get_Fastq", "Align"]
-    ["Make_Index", "Align"] ~> "Quant_Prep"
-    path ["Quant_Prep", "Quant", "Convert_ID_To_Name", "Average_Prep"
-        , "Average", "Make_Expr_Table"]
+    path ["Read_Input", "Download_Data", "Get_Fastq", "Make_Index", "Align",
+        "Quant", "Convert_ID_To_Name", "Average_Prep", "Average", "Make_Expr_Table"]

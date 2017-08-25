@@ -10,7 +10,6 @@ module Taiji.Pipeline.RNASeq.Functions
     , rnaDownloadData
     , rnaAlign
     , getFastq
-    , quantPrep
     , quantification
     , geneId2Name
     , averageExpr
@@ -52,22 +51,27 @@ import           Taiji.Pipeline.RNASeq.Config
 
 type RNASeqWithSomeFile = RNASeq [Either SomeFile (SomeFile, SomeFile)]
 
-rnaMkIndex :: RNASeqConfig config => () -> WorkflowConfig config (FilePath, FilePath)
-rnaMkIndex _ = do
-    genome <- asks (fromJust . _rnaseq_genome_fasta)
-    dir <- asks (fromJust . _rnaseq_star_index)
-    anno <- asks (fromJust . _rnaseq_annotation)
-    rsemIndex <- asks (fromJust . _rnaseq_rsem_index)
-    liftIO $ (,) <$> starMkIndex "star" dir [genome] anno 100 <*>
-        rsemMkIndex rsemIndex anno [genome]
+rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
+rnaMkIndex input
+    | null input = return input
+    | otherwise = do
+        genome <- asks (fromJust . _rnaseq_genome_fasta)
+        starIndex <- asks (fromJust . _rnaseq_star_index)
+        anno <- asks (fromJust . _rnaseq_annotation)
+        rsemIndex <- asks (fromJust . _rnaseq_rsem_index)
+        liftIO $ do
+            starMkIndex "star" starIndex [genome] anno 100
+            rsemMkIndex rsemIndex anno [genome]
+            return input
 
 rnaAlign :: RNASeqConfig config
-         => ContextData FilePath (MaybePairExp RNASeq '[] '[Pairend] 'Fastq)
+         => MaybePairExp RNASeq '[] '[Pairend] 'Fastq
          -> WorkflowConfig config (
                 Either (RNASeq (File '[] 'Bam, File '[] 'Bam))
                        (RNASeq (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
-rnaAlign (ContextData idx input) = do
+rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
+    idx <- asks (fromJust . _rnaseq_star_index)
     liftIO $ starAlign (dir, "bam") idx (return ()) input
 
 rnaDownloadData :: RNASeqConfig config
@@ -83,9 +87,9 @@ rnaDownloadData dat = do
         else return input
     download _ x = return x
 
-getFastq :: ((FilePath, FilePath), [RNASeqWithSomeFile])
-         -> ContextData FilePath [ MaybePairExp RNASeq '[] '[Pairend] 'Fastq ]
-getFastq ((idx,_), inputs) = ContextData idx $ flip concatMap inputs $ \input ->
+getFastq :: [RNASeqWithSomeFile]
+         -> [MaybePairExp RNASeq '[] '[Pairend] 'Fastq]
+getFastq inputs = flip concatMap inputs $ \input ->
     fromMaybe (error "A mix of single and pairend fastq was found") $
         splitExpByFileEither $ input & replicates.mapped.files %~ f
   where
@@ -95,21 +99,13 @@ getFastq ((idx,_), inputs) = ContextData idx $ flip concatMap inputs $ \input ->
       where
         g (x,y) = x `someFileIs` Fastq && y `someFileIs` Fastq
 
-quantPrep :: ( (FilePath, FilePath)
-             , [ Either (RNASeq (File tags1 'Bam, File tags1 'Bam))
-                        (RNASeq (File tags2 'Bam, File tags2 'Bam)) ] )
-          -> ContextData FilePath [ Either (RNASeq (File tags1 'Bam))
-                                           (RNASeq (File tags2 'Bam)) ]
-quantPrep ((_, idx), input) = ContextData idx $ map (bimap fun fun) input
-  where
-    fun x = x & replicates.mapped.files %~ fst
-
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
-               => ContextData FilePath ( Either (RNASeq (File tags1 'Bam))
-                                           (RNASeq (File tags2 'Bam)) )
+               => Either (RNASeq (File tags1 'Bam))
+                         (RNASeq (File tags2 'Bam))
                -> WorkflowConfig config (RNASeq (File '[GeneQuant] 'Tsv, File '[TranscriptQuant] 'Tsv))
-quantification (ContextData idx input) = do
+quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
+    idx <- asks (fromJust . _rnaseq_rsem_index)
     let fun :: SingI tag => RNASeq (File tag 'Bam) -> _
         fun = rsemQuant dir idx (return ())
     liftIO $ either fun fun input
@@ -187,7 +183,7 @@ combine xs = flip map names $ \nm -> (nm, map (M.lookupDefault 0.01 nm) xs')
 {-# INLINE combine #-}
 
 average :: [Double] -> Double
-average [a]     = a
+
 average [a,b]   = (a + b) / 2
 average [a,b,c] = (a + b + c) / 3
 average xs      = foldl1' (+) xs / fromIntegral (length xs)

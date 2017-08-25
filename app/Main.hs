@@ -49,5 +49,5 @@ initialization _ = return ()
 
 mainWith defaultMainOpts { programHeader = "Taiji-RNA-Seq" } $ do
     nodeS "Initialization" 'initialization $ submitToRemote .= Just False
-    ["Initialization"] ~> "Make_Index"
+    ["Initialization"] ~> "Read_Input"
     builder
