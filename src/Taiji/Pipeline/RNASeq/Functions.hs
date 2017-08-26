@@ -51,6 +51,10 @@ import           Taiji.Pipeline.RNASeq.Config
 
 type RNASeqWithSomeFile = RNASeq [Either SomeFile (SomeFile, SomeFile)]
 
+type RNASeqMaybePair tag1 tag2 filetype =
+    Either (RNASeq (File tag1 filetype))
+           (RNASeq (File tag2 filetype, File tag2 filetype))
+
 rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
 rnaMkIndex input
     | null input = return input
@@ -65,7 +69,7 @@ rnaMkIndex input
             return input
 
 rnaAlign :: RNASeqConfig config
-         => MaybePairExp RNASeq '[] '[Pairend] 'Fastq
+         => RNASeqMaybePair '[] '[Pairend] 'Fastq
          -> WorkflowConfig config (
                 Either (RNASeq (File '[] 'Bam, File '[] 'Bam))
                        (RNASeq (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
@@ -88,16 +92,15 @@ rnaDownloadData dat = do
     download _ x = return x
 
 getFastq :: [RNASeqWithSomeFile]
-         -> [MaybePairExp RNASeq '[] '[Pairend] 'Fastq]
+         -> [RNASeqMaybePair '[] '[Pairend] 'Fastq]
 getFastq inputs = flip concatMap inputs $ \input ->
     fromMaybe (error "A mix of single and pairend fastq was found") $
         splitExpByFileEither $ input & replicates.mapped.files %~ f
   where
-    f :: [Either SomeFile (SomeFile, SomeFile)] -> [MaybePair '[] '[Pairend] 'Fastq]
     f fls = map (bimap fromSomeFile (bimap fromSomeFile fromSomeFile)) $
-        filter (either (`someFileIs` Fastq) g) fls
+        filter (either (\x -> getFileType x == Fastq) g) fls
       where
-        g (x,y) = x `someFileIs` Fastq && y `someFileIs` Fastq
+        g (x,y) = getFileType x == Fastq && getFileType y == Fastq
 
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
                => Either (RNASeq (File tags1 'Bam))
