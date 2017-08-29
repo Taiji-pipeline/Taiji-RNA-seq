@@ -49,11 +49,11 @@ import           Scientific.Workflow
 
 import           Taiji.Pipeline.RNASeq.Config
 
-type RNASeqWithSomeFile = RNASeq [Either SomeFile (SomeFile, SomeFile)]
+type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
 
 type RNASeqMaybePair tag1 tag2 filetype =
-    Either (RNASeq (File tag1 filetype))
-           (RNASeq (File tag2 filetype, File tag2 filetype))
+    Either (RNASeq S (File tag1 filetype))
+           (RNASeq S (File tag2 filetype, File tag2 filetype))
 
 rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
 rnaMkIndex input
@@ -71,8 +71,8 @@ rnaMkIndex input
 rnaAlign :: RNASeqConfig config
          => RNASeqMaybePair '[] '[Pairend] 'Fastq
          -> WorkflowConfig config (
-                Either (RNASeq (File '[] 'Bam, File '[] 'Bam))
-                       (RNASeq (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
+                Either (RNASeq S (File '[] 'Bam, File '[] 'Bam))
+                       (RNASeq S (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
 rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
@@ -93,9 +93,8 @@ rnaDownloadData dat = do
 
 getFastq :: [RNASeqWithSomeFile]
          -> [RNASeqMaybePair '[] '[Pairend] 'Fastq]
-getFastq inputs = flip concatMap inputs $ \input ->
-    fromMaybe (error "A mix of single and pairend fastq was found") $
-        splitExpByFileEither $ input & replicates.mapped.files %~ f
+getFastq inputs = concatMap split $ concatMap split $
+    inputs & mapped.replicates.mapped.files %~ f
   where
     f fls = map (bimap fromSomeFile (bimap fromSomeFile fromSomeFile)) $
         filter (either (\x -> getFileType x == Fastq) g) fls
@@ -103,20 +102,21 @@ getFastq inputs = flip concatMap inputs $ \input ->
         g (x,y) = getFileType x == Fastq && getFileType y == Fastq
 
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
-               => Either (RNASeq (File tags1 'Bam))
-                         (RNASeq (File tags2 'Bam))
-               -> WorkflowConfig config (RNASeq (File '[GeneQuant] 'Tsv, File '[TranscriptQuant] 'Tsv))
+               => Either (RNASeq S (File tags1 'Bam))
+                         (RNASeq S (File tags2 'Bam))
+               -> WorkflowConfig config (RNASeq S
+                    (File '[GeneQuant] 'Tsv, File '[TranscriptQuant] 'Tsv))
 quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_rsem_index)
-    let fun :: SingI tag => RNASeq (File tag 'Bam) -> _
+    let fun :: SingI tag => RNASeq S (File tag 'Bam) -> _
         fun = rsemQuant dir idx (return ())
     liftIO $ either fun fun input
 
 -- | Retrieve gene names
 geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
-            => RNASeq (File tags 'Tsv)
-            -> WorkflowConfig config (RNASeq (File tags 'Tsv))
+            => RNASeq S (File tags 'Tsv)
+            -> WorkflowConfig config (RNASeq S (File tags 'Tsv))
 geneId2Name experiment = do
     outdir <- asks _rnaseq_output_dir >>= getPath
     anno <- asks (fromJust . _rnaseq_annotation)
@@ -129,12 +129,12 @@ geneId2Name experiment = do
                     [M.lookupDefault (head xs `B.append` "(inconvertible)") (head xs)
                     id2Name, xs!!4]) . B.split '\t' ) $ tail $ B.lines c
                 return $ location .~ output $ emptyFile
-        nameWith outdir "_gene_quant_TPM.tsv" fun experiment
+        mapFileWithDefName outdir "_gene_quant_TPM.tsv" fun experiment
 
 -- | Retrieve gene names and compute the average expression of replicates.
 averageExpr :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
-            => RNASeq (File tags 'Tsv)
-            -> WorkflowConfig config (RNASeq (File tags 'Tsv))
+            => RNASeq N (File tags 'Tsv)
+            -> WorkflowConfig config (RNASeq S (File tags 'Tsv))
 averageExpr experiment = do
     outdir <- asks _rnaseq_output_dir >>= getPath
     let fls = experiment^..replicates.folded.files
@@ -150,11 +150,11 @@ averageExpr experiment = do
         B.writeFile output $ B.unlines $
             map (\(a,b) -> B.intercalate "\t" [original a, toShortest $ average b]) $
             combine expr
-        return $ replicates .~ [Replicate newFile [] 0] $ experiment
+        return $ replicates .~ return (Replicate newFile [] 0) $ experiment
 
 -- | Combine RNA expression data into a table and output
 mkTable :: RNASeqConfig config
-        => [RNASeq (File tags 'Tsv)]
+        => [RNASeq S (File tags 'Tsv)]
         -> WorkflowConfig config (Maybe (File '[] 'Tsv))
 mkTable es
     | null es = return Nothing

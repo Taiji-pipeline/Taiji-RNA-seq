@@ -36,7 +36,7 @@ builder = do
     node' "Average_Prep" [| \input ->
         let fun [x] = x
             fun _ = error "Found multiple files"
-        in (mergeExps input) & mapped.replicates.mapped.files %~ fun
+        in (merge input) & mapped.replicates.mapped.files %~ fun
         |] $ submitToRemote .= Just False
     nodePS 1 "Average" 'averageExpr $ return ()
     nodeS "Make_Expr_Table" 'mkTable $ return ()
