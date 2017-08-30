@@ -9,7 +9,8 @@ module Taiji.Pipeline.RNASeq.Functions
     ( rnaMkIndex
     , rnaDownloadData
     , rnaAlign
-    , getFastq
+    , rnaGetFastq
+    , rnaGetExpression
     , quantification
     , geneId2Name
     , averageExpr
@@ -91,15 +92,22 @@ rnaDownloadData dat = do
         else return input
     download _ x = return x
 
-getFastq :: [RNASeqWithSomeFile]
-         -> [RNASeqMaybePair '[] '[Pairend] 'Fastq]
-getFastq inputs = concatMap split $ concatMap split $
+rnaGetFastq :: [RNASeqWithSomeFile]
+            -> [RNASeqMaybePair '[] '[Pairend] 'Fastq]
+rnaGetFastq inputs = concatMap split $ concatMap split $ concatMap split $
     inputs & mapped.replicates.mapped.files %~ f
   where
     f fls = map (bimap fromSomeFile (bimap fromSomeFile fromSomeFile)) $
         filter (either (\x -> getFileType x == Fastq) g) fls
       where
         g (x,y) = getFileType x == Fastq && getFileType y == Fastq
+
+rnaGetExpression :: [RNASeqWithSomeFile]
+                 -> [RNASeq S (File '[GeneQuant] 'Tsv)]
+rnaGetExpression inputs = concatMap split $ concatMap split $
+    inputs & mapped.replicates.mapped.files %~ f
+  where
+    f fls = map fromSomeFile $ filter (`hasTag` GeneQuant) $ lefts fls
 
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
                => Either (RNASeq S (File tags1 'Bam))
@@ -129,7 +137,7 @@ geneId2Name experiment = do
                     [M.lookupDefault (head xs `B.append` "(inconvertible)") (head xs)
                     id2Name, xs!!4]) . B.split '\t' ) $ tail $ B.lines c
                 return $ location .~ output $ emptyFile
-        mapFileWithDefName outdir "_gene_quant_TPM.tsv" fun experiment
+        mapFileWithDefName (outdir ++ "/") "_gene_quant_TPM.tsv" fun experiment
 
 -- | Retrieve gene names and compute the average expression of replicates.
 averageExpr :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
@@ -186,7 +194,6 @@ combine xs = flip map names $ \nm -> (nm, map (M.lookupDefault 0.01 nm) xs')
 {-# INLINE combine #-}
 
 average :: [Double] -> Double
-
 average [a,b]   = (a + b) / 2
 average [a,b,c] = (a + b + c) / 3
 average xs      = foldl1' (+) xs / fromIntegral (length xs)
