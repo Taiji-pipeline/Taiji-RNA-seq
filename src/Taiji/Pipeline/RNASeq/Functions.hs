@@ -11,6 +11,7 @@ module Taiji.Pipeline.RNASeq.Functions
     , rnaAlign
     , rnaGetFastq
     , rnaGetExpression
+    , rnaGetExpressionENCODE
     , quantification
     , geneId2Name
     , averageExpr
@@ -103,6 +104,14 @@ rnaGetExpression inputs = concatMap split $ concatMap split $
   where
     f fls = map fromSomeFile $ filter (`hasTag` GeneQuant) $ lefts fls
 
+rnaGetExpressionENCODE :: [RNASeqWithSomeFile]
+                       -> [RNASeq S (File '[GeneQuant] 'Tsv)]
+rnaGetExpressionENCODE inputs = concatMap split $ concatMap split $
+    inputs & mapped.replicates.mapped.files %~ f
+  where
+    f fls = map fromSomeFile $ filter
+        (\x -> x `hasTag` GeneQuant && x `hasTag` ENCODE) $ lefts fls
+
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
                => Either (RNASeq S (File tags1 'Bam))
                          (RNASeq S (File tags2 'Bam))
@@ -117,9 +126,9 @@ quantification input = do
 
 -- | Retrieve gene names
 geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
-            => RNASeq S (File tags 'Tsv)
-            -> WorkflowConfig config (RNASeq S (File tags 'Tsv))
-geneId2Name experiment = do
+            => [RNASeq S (File tags 'Tsv)]
+            -> WorkflowConfig config [RNASeq S (File tags 'Tsv)]
+geneId2Name experiments = do
     outdir <- asks _rnaseq_output_dir >>= getPath
     anno <- asks (fromJust . _rnaseq_annotation)
     liftIO $ do
@@ -131,7 +140,7 @@ geneId2Name experiment = do
                     [M.lookupDefault (head xs `B.append` "(inconvertible)") (head xs)
                     id2Name, xs!!4]) . B.split '\t' ) $ tail $ B.lines c
                 return $ location .~ output $ emptyFile
-        mapFileWithDefName (outdir ++ "/") "_gene_quant_TPM.tsv" fun experiment
+        mapM (mapFileWithDefName (outdir ++ "/") "_gene_quant_TPM.tsv" fun) experiments
 
 -- | Retrieve gene names and compute the average expression of replicates.
 averageExpr :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
