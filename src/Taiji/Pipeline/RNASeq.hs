@@ -24,7 +24,7 @@ builder = do
         |] $ submitToRemote .= Just False
     nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'rnaGetFastq $ submitToRemote .= Just False
-    nodeS "Make_Index" 'rnaMkIndex $ return ()
+    nodeS "Make_Index" 'rnaMkIndex $ remoteParam .= "--mem=40000 -p gpu"
     nodePS 1 "Align" 'rnaAlign $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
     nodePS 1 "Quant" [| \input -> do

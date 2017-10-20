@@ -66,7 +66,7 @@ rnaMkIndex input
         anno <- asks (fromJust . _rnaseq_annotation)
         rsemIndex <- asks (fromJust . _rnaseq_rsem_index)
         liftIO $ do
-            starMkIndex "star" starIndex [genome] anno 100
+            starMkIndex "STAR" starIndex [genome] anno 100
             rsemMkIndex rsemIndex anno [genome]
             return input
 
