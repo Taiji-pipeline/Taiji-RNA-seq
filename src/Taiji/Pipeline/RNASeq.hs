@@ -25,11 +25,13 @@ builder = do
     nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'rnaGetFastq $ submitToRemote .= Just False
     nodeS "Make_Index" 'rnaMkIndex $ return ()
-    nodePS 1 "Align" 'rnaAlign $ return ()
+    nodePS 1 "Align" 'rnaAlign $
+        remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
     nodePS 1 "Quant" [| \input -> do
         let fun x = x & replicates.mapped.files %~ fst
         quantification $ bimap fun fun input
-        |] $ return ()
+        |] $
+        remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
     nodeS "Convert_ID_To_Name" [| \(input1, input2) -> geneId2Name $
         rnaGetExpressionENCODE input1 ++
                 (input2 & mapped.replicates.mapped.files %~ fst)
