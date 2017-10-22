@@ -44,6 +44,7 @@ import           Data.List
 import           Data.List.Ordered                 (nubSort)
 import           Data.Maybe                        (fromJust, fromMaybe,
                                                     mapMaybe)
+import           Data.Monoid                       ((<>))
 import           Data.Promotion.Prelude.List       (Elem)
 import           Data.Singletons                   (SingI)
 import qualified Data.Text                         as T
@@ -71,28 +72,63 @@ rnaMkIndex input
             return input
 
 rnaAlign :: RNASeqConfig config
-         => RNASeqMaybePair '[] '[Pairend] 'Fastq
+         => Either (RNASeq S (SomeTags 'Fastq))
+                   (RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq))
          -> WorkflowConfig config (
                 Either (RNASeq S (File '[] 'Bam, File '[] 'Bam))
                        (RNASeq S (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
 rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
-    liftIO $ starAlign (dir, "bam") idx (return ()) input
+    liftIO $ case input of
+        Left e -> if (runIdentity (e^.replicates) ^. files) `hasTag` Gzip
+            then starAlign (dir, "bam") idx (starCores .= 4) (Left $
+                e & replicates.traverse.files %~ fromSomeTags
+                    :: Either (RNASeq S (File '[Gzip] 'Fastq))
+                              (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
+            else starAlign (dir, "bam") idx (starCores .= 4) (Left $
+                e & replicates.traverse.files %~ fromSomeTags
+                    :: Either (RNASeq S (File '[] 'Fastq))
+                              (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
+        Right e -> do
+            let (f_a, f_b) = runIdentity (e^.replicates) ^. files
+            if f_a `hasTag` Gzip && f_b `hasTag` Gzip
+                then starAlign (dir, "bam") idx (starCores .= 4) ( Right $
+                    e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
+                        :: Either (RNASeq S (File '[] 'Fastq))
+                                  (RNASeq S (File '[Gzip] 'Fastq, File '[Gzip] 'Fastq)) )
+                else starAlign (dir, "bam") idx (starCores .= 4) ( Right $
+                    e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
+                        :: Either (RNASeq S (File '[] 'Fastq))
+                                  (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
+                {-
+        Right (f1, f2) -> do
+            let f (SomeTags fl) = fl
+            fmap (bimap fun fun) $ starAlign (dir, "bam") idx (starCores .= 4) $ Right
+                ( f1 & replicates.traverse.files %%~ f
+                , f2 & replicates.traverse.files %%~ f
+                )
+            fmap (bimap fun fun) $ starAlign (dir, "bam") idx (starCores .= 4) $ Left $
+                fl & replicates.traverse.files %%~ f
+                -}
+  where
+    fun x = x & replicates.traverse.files %%~ coerce
 
 rnaDownloadData :: RNASeqConfig config
                 => [RNASeqWithSomeFile]
                 -> WorkflowConfig config [RNASeqWithSomeFile]
 rnaDownloadData dat = do
-    dir <- asks _rnaseq_output_dir >>= getPath
+    dir <- asks _rnaseq_output_dir >>= getPath . (<> (asDir "/Download"))
     liftIO $ dat & traverse.replicates.traverse.files.traverse %%~ downloadFiles dir
 
 rnaGetFastq :: [RNASeqWithSomeFile]
-            -> [RNASeqMaybePair '[] '[Pairend] 'Fastq]
+            -> [ Either (RNASeq S (SomeTags 'Fastq))
+                        (RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq))
+               ]
 rnaGetFastq inputs = concatMap split $ concatMap split $ concatMap split $
     inputs & mapped.replicates.mapped.files %~ f
   where
-    f fls = map (bimap fromSomeFile (bimap fromSomeFile fromSomeFile)) $
+    f fls = map (bimap castFile (bimap castFile castFile)) $
         filter (either (\x -> getFileType x == Fastq) g) fls
       where
         g (x,y) = getFileType x == Fastq && getFileType y == Fastq
@@ -121,7 +157,7 @@ quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_rsem_index)
     let fun :: SingI tag => RNASeq S (File tag 'Bam) -> _
-        fun = rsemQuant dir idx (return ())
+        fun = rsemQuant dir idx (rsemCores .= 4)
     liftIO $ either fun fun input
 
 -- | Retrieve gene names
