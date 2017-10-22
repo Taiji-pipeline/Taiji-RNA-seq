@@ -101,18 +101,6 @@ rnaAlign input = do
                     e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
                         :: Either (RNASeq S (File '[] 'Fastq))
                                   (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
-                {-
-        Right (f1, f2) -> do
-            let f (SomeTags fl) = fl
-            fmap (bimap fun fun) $ starAlign (dir, "bam") idx (starCores .= 4) $ Right
-                ( f1 & replicates.traverse.files %%~ f
-                , f2 & replicates.traverse.files %%~ f
-                )
-            fmap (bimap fun fun) $ starAlign (dir, "bam") idx (starCores .= 4) $ Left $
-                fl & replicates.traverse.files %%~ f
-                -}
-  where
-    fun x = x & replicates.traverse.files %%~ coerce
 
 rnaDownloadData :: RNASeqConfig config
                 => [RNASeqWithSomeFile]
