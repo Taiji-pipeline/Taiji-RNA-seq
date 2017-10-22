@@ -28,7 +28,7 @@ builder = do
     nodePS 1 "Align" 'rnaAlign $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
     nodePS 1 "Quant" [| \input -> do
-        let fun x = x & replicates.mapped.files %~ fst
+        let fun x = x & replicates.mapped.files %~ snd
         quantification $ bimap fun fun input
         |] $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"

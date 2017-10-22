@@ -82,22 +82,22 @@ rnaAlign input = do
     idx <- asks (fromJust . _rnaseq_star_index)
     liftIO $ case input of
         Left e -> if (runIdentity (e^.replicates) ^. files) `hasTag` Gzip
-            then starAlign (dir, "bam") idx (starCores .= 4) (Left $
+            then starAlign (dir, ".bam") idx (starCores .= 4) (Left $
                 e & replicates.traverse.files %~ fromSomeTags
                     :: Either (RNASeq S (File '[Gzip] 'Fastq))
                               (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
-            else starAlign (dir, "bam") idx (starCores .= 4) (Left $
+            else starAlign (dir, ".bam") idx (starCores .= 4) (Left $
                 e & replicates.traverse.files %~ fromSomeTags
                     :: Either (RNASeq S (File '[] 'Fastq))
                               (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
         Right e -> do
             let (f_a, f_b) = runIdentity (e^.replicates) ^. files
             if f_a `hasTag` Gzip && f_b `hasTag` Gzip
-                then starAlign (dir, "bam") idx (starCores .= 4) ( Right $
+                then starAlign (dir, ".bam") idx (starCores .= 4) ( Right $
                     e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
                         :: Either (RNASeq S (File '[] 'Fastq))
                                   (RNASeq S (File '[Gzip] 'Fastq, File '[Gzip] 'Fastq)) )
-                else starAlign (dir, "bam") idx (starCores .= 4) ( Right $
+                else starAlign (dir, ".bam") idx (starCores .= 4) ( Right $
                     e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
                         :: Either (RNASeq S (File '[] 'Fastq))
                                   (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
