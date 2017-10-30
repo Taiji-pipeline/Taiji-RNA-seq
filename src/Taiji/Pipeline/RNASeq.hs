@@ -32,21 +32,10 @@ builder = do
         quantification $ bimap fun fun input
         |] $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
-    nodeS "Convert_ID_To_Name" [| \(input1, input2) -> geneId2Name $
-        rnaGetExpressionENCODE input1 ++
-                (input2 & mapped.replicates.mapped.files %~ fst)
+    nodeS "Convert_ID_To_Name" [| \input -> geneId2Name $
+        input & mapped.replicates.mapped.files %~ fst
         |] $ return ()
     path ["Read_Input", "Download_Data", "Get_Fastq", "Make_Index", "Align",
-        "Quant"]
-    ["Download_Data", "Quant"] ~> "Convert_ID_To_Name"
-
-    node' "Get_Expression" [| \(input1, input2) ->
-        let fun [x] = x
-            fun _   = error "Found multiple files"
-        in merge (rnaGetExpression input1 ++ input2) &
-                mapped.replicates.mapped.files %~ fun
-        |] $ submitToRemote .= Just False
-    nodePS 1 "Average" 'averageExpr $ return ()
+        "Quant", "Convert_ID_To_Name"]
     nodeS "Make_Expr_Table" 'mkTable $ return ()
-    ["Download_Data", "Convert_ID_To_Name"] ~> "Get_Expression"
-    path ["Get_Expression", "Average", "Make_Expr_Table"]
+    ["Download_Data", "Convert_ID_To_Name"] ~> "Make_Expr_Table"
