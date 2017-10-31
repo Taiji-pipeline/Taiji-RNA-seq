@@ -151,29 +151,6 @@ geneId2Name experiments = do
             getGeneName x = M.lookupDefault (x `B.append` "(inconvertible)") x id2Name
         mapM (mapFileWithDefName (outdir ++ "/") "_gene_quant.tsv" fun) experiments
 
-        {-
--- | Retrieve gene names and compute the average expression of replicates.
-averageExpr :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
-            => RNASeq N (File tags 'Tsv)
-            -> WorkflowConfig config (RNASeq S (File tags 'Tsv))
-averageExpr experiment = do
-    outdir <- asks _rnaseq_output_dir >>= getPath
-    let fls = experiment^..replicates.folded.files
-        output = outdir ++ "/" ++ T.unpack (experiment^.eid) ++
-            "_average_gene_quant.tsv"
-        newFile = location .~ output $ emptyFile
-        readExpr fl = do
-            c <- B.readFile fl
-            return $ map (\xs -> let [a,b] = B.split '\t' xs in (mk a, readDouble b)) $
-                B.lines c
-    liftIO $ do
-        expr <- mapM (readExpr . (^.location)) fls
-        B.writeFile output $ B.unlines $
-            map (\(a,b) -> B.intercalate "\t" [original a, toShortest $ average b]) $
-            combine expr
-        return $ replicates .~ return (Replicate newFile [] 0) $ experiment
-        -}
-
 readExpr :: ([RNASeqWithSomeFile], [RNASeq S (File tags 'Tsv)])
          -> IO [(T.Text, [[(CI B.ByteString, Double)]])]
 readExpr (inputs, quantifications) = do
@@ -181,7 +158,7 @@ readExpr (inputs, quantifications) = do
         c <- B.readFile $ runIdentity (e^.replicates) ^. files.location
         let result = map (\xs ->
                 let fs = B.split '\t' xs in (mk $ head fs, readDouble $ fs!!5)) $
-                B.lines c
+                tail $ B.lines c
         return (fromJust $ e^.groupName, [result])
     customizedExpr <- forM inputs $ \e -> do
         results <- forM (filt (`hasTag` GeneQuant) e) $ \fl -> do
@@ -195,31 +172,13 @@ readExpr (inputs, quantifications) = do
             c <- B.readFile $ fromSomeFile fl ^. location
             return $ map (\xs ->
                 let fs = B.split '\t' xs in (mk $ head fs, readDouble $ fs!!5)) $
-                B.lines c
+                tail $ B.lines c
         return (fromJust $ e^.groupName, results)
 
     return $ quant ++ customizedExpr ++ encodeExpr
   where
     filt fun x = filter fun $ lefts $ x^..replicates.folded.files.folded
 {-# INLINE readExpr #-}
-
-{-
-rnaGetExpression :: [RNASeqWithSomeFile]
-                 -> [RNASeq S (File '[GeneQuant] 'Tsv)]
-rnaGetExpression inputs = concatMap split $ concatMap split $
-    inputs & mapped.replicates.mapped.files %~ f
-  where
-    f fls = map fromSomeFile $ filter (`hasTag` GeneQuant) $ lefts fls
-
-rnaGetExpressionENCODE :: [RNASeqWithSomeFile]
-                       -> [RNASeq S (File '[GeneQuant] 'Tsv)]
-rnaGetExpressionENCODE inputs = concatMap split $ concatMap split $
-    inputs & mapped.replicates.mapped.files %~ f
-  where
-    f fls = map fromSomeFile $ filter
-        (\x -> x `hasTag` GeneQuant && x `hasTag` ENCODE) $ lefts fls
-        -}
-
 
 -- | Combine RNA expression data into a table and output
 mkTable :: RNASeqConfig config
