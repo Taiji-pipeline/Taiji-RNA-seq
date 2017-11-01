@@ -161,7 +161,7 @@ readExpr (inputs, quantifications) = do
                 tail $ B.lines c
         return (fromJust $ e^.groupName, [result])
     customizedExpr <- forM inputs $ \e -> do
-        results <- forM (filt (`hasTag` GeneQuant) e) $ \fl -> do
+        results <- forM (filt (\x -> x `hasTag` GeneQuant && not (x `hasTag` ENCODE)) e) $ \fl -> do
             c <- B.readFile $ fromSomeFile fl ^. location
             return $ map
                 (\xs -> let [a,b] = B.split '\t' xs in (mk a, readDouble b)) $
