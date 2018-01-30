@@ -25,17 +25,17 @@ builder = do
     nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'rnaGetFastq $ submitToRemote .= Just False
     nodeS "Make_Index" 'rnaMkIndex $ do
-        -- remoteParam .= "--mem=40000 -p gpu"  -- slurm
-        remoteParam .= "-l vmem=40G"  -- sge
+        remoteParam .= "--mem=40000 -p gpu"  -- slurm
+        -- remoteParam .= "-l vmem=40G"  -- sge
     nodePS 1 "Align" 'rnaAlign $
-        -- remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
-        remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
+        remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
+        -- remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
     nodePS 1 "Quant" [| \input -> do
         let fun x = x & replicates.mapped.files %~ snd
         quantification $ bimap fun fun input
         |] $
-        -- remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
-        remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
+        remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
+        -- remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
     nodeS "Convert_ID_To_Name" [| \input -> geneId2Name $
         input & mapped.replicates.mapped.files %~ fst
         |] $ return ()
