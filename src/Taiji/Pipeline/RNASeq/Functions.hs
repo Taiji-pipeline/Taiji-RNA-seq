@@ -139,7 +139,7 @@ geneId2Name experiments = do
     anno <- asks (fromJust . _rnaseq_annotation)
     liftIO $ do
         id2Name <- fmap (M.fromList . map (\x -> (geneId x, original $ geneName x))) $
-            readGenes' anno
+            readGenes anno
         let fun output fl = do
                 c <- B.readFile $ fl^.location
                 let (header:rest) = B.lines c
