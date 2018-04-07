@@ -155,7 +155,7 @@ geneId2Name (ori_input, quantifications) = do
         let encodeExpr = getExp $ \x -> x `hasTag` GeneQuant && x `hasTag` ENCODE
         encodeExpr' <- mapM (mapFileWithDefName prefix suffix convertTaiji) encodeExpr
 
-        let customizedExpr = getExp (`hasTag` GeneQuant)
+        let customizedExpr = getExp (\x -> x `hasTag` GeneQuant && not (x `hasTag` ENCODE))
             convertCustom out fl = do
                 geneId2Name_ [2] False id2Name (fl^.location) out
                 return $ location .~ out $ emptyFile
