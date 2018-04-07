@@ -36,10 +36,13 @@ builder = do
         |] $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
         -- remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
-    nodeS "Convert_ID_To_Name" [| \input -> geneId2Name $
-        input & mapped.replicates.mapped.files %~ fst
-        |] $ return ()
     path ["Read_Input", "Download_Data", "Get_Fastq", "Make_Index", "Align",
-        "Quant", "Convert_ID_To_Name"]
+        "Quant"]
+
+    nodeS "Convert_ID_To_Name" [| \(ori, input) -> do
+        let input' = input & mapped.replicates.mapped.files %~ fst
+        geneId2Name (ori, input')
+        |] $ return ()
+    ["Download_Data", "Quant"] ~> "Convert_ID_To_Name"
     nodeS "Make_Expr_Table" 'mkTable $ return ()
-    ["Download_Data", "Convert_ID_To_Name"] ~> "Make_Expr_Table"
+    ["Convert_ID_To_Name"] ~> "Make_Expr_Table"
