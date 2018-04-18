@@ -20,7 +20,9 @@ builder :: Builder ()
 builder = do
     nodeS "Read_Input" [| \_ -> do
         input <- asks _rnaseq_input
-        liftIO $ readRNASeq input "RNA-seq"
+        liftIO $ if ".tsv" == reverse (take 4 $ reverse input)
+            then readRNASeqTSV input "RNA-seq"
+            else readRNASeq input "RNA-seq"
         |] $ submitToRemote .= Just False
     nodeS "Download_Data" 'rnaDownloadData $ submitToRemote .= Just False
     node' "Get_Fastq" 'rnaGetFastq $ submitToRemote .= Just False
