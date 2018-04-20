@@ -74,7 +74,7 @@ rnaAlign :: RNASeqConfig config
                    (RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq))
          -> WorkflowConfig config (
                 Either (RNASeq S (File '[] 'Bam, File '[] 'Bam))
-                       (RNASeq S (File '[Pairend] 'Bam, File '[Pairend] 'Bam)) )
+                       (RNASeq S (File '[PairedEnd] 'Bam, File '[PairedEnd] 'Bam)) )
 rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
