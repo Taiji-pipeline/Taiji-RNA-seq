@@ -1,4 +1,4 @@
-module Taiji.Pipeline.RNASeq.Config where
+module Taiji.Pipeline.RNASeq.Classic.Config where
 
 import           Bio.Pipeline.Utils
 

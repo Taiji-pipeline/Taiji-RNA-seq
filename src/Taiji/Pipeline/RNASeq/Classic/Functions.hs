@@ -5,11 +5,10 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell       #-}
-module Taiji.Pipeline.RNASeq.Functions
+module Taiji.Pipeline.RNASeq.Classic.Functions
     ( rnaMkIndex
     , rnaDownloadData
     , rnaAlign
-    , rnaGetFastq
     , quantification
     , geneId2Name
     , mkTable
@@ -20,41 +19,40 @@ import           Bio.Data.Experiment.Parser
 import           Bio.Pipeline.CallPeaks
 import           Bio.Pipeline.Download
 import           Bio.Pipeline.NGS
+import           Bio.Pipeline.NGS.RSEM
+import           Bio.Pipeline.NGS.STAR
 import           Bio.Pipeline.NGS.Utils
 import           Bio.Pipeline.Report
 import           Bio.Pipeline.Utils
 import           Bio.RealWorld.GENCODE
-import           Bio.Utils.Misc                    (readDouble)
+import           Bio.Utils.Misc                       (readDouble)
 import           Control.Lens
-import           Control.Monad                     (forM)
-import           Control.Monad.IO.Class            (liftIO)
-import           Control.Monad.Reader              (asks)
-import           Data.Bifunctor                    (bimap, second)
-import           Data.Bitraversable                (bitraverse)
-import qualified Data.ByteString.Char8             as B
-import           Data.CaseInsensitive              (CI, mk, original)
-import           Data.Coerce                       (coerce)
-import           Data.Double.Conversion.ByteString (toShortest)
-import           Data.Either                       (lefts, rights)
-import qualified Data.HashMap.Strict               as M
-import qualified Data.HashSet as S
+import           Control.Monad                        (forM)
+import           Control.Monad.IO.Class               (liftIO)
+import           Control.Monad.Reader                 (asks)
+import           Data.Bifunctor                       (bimap, second)
+import           Data.Bitraversable                   (bitraverse)
+import qualified Data.ByteString.Char8                as B
+import           Data.CaseInsensitive                 (CI, mk, original)
+import           Data.Coerce                          (coerce)
+import           Data.Double.Conversion.ByteString    (toShortest)
+import           Data.Either                          (lefts, rights)
+import qualified Data.HashMap.Strict                  as M
+import qualified Data.HashSet                         as S
 import           Data.List
-import           Data.List.Ordered                 (nubSort)
-import           Data.Maybe                        (fromJust, fromMaybe,
-                                                    mapMaybe)
-import           Data.Monoid                       ((<>))
-import           Data.Promotion.Prelude.List       (Elem)
-import           Data.Singletons                   (SingI)
-import qualified Data.Text                         as T
+import           Data.List.Ordered                    (nubSort)
+import           Data.Maybe                           (fromJust, fromMaybe,
+                                                       mapMaybe)
+import           Data.Monoid                          ((<>))
+import           Data.Promotion.Prelude.List          (Elem)
+import           Data.Singletons                      (SingI)
+import qualified Data.Text                            as T
 import           Scientific.Workflow
+import           Text.Printf                          (printf)
 
-import           Taiji.Pipeline.RNASeq.Config
+import           Taiji.Pipeline.RNASeq.Classic.Config
 
 type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
-
-type RNASeqMaybePair tag1 tag2 filetype =
-    Either (RNASeq S (File tag1 filetype))
-           (RNASeq S (File tag2 filetype, File tag2 filetype))
 
 rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
 rnaMkIndex input
@@ -70,35 +68,36 @@ rnaMkIndex input
             return input
 
 rnaAlign :: RNASeqConfig config
-         => Either (RNASeq S (SomeTags 'Fastq))
-                   (RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq))
+         => Bool  -- ^ Whether to output transcriptome
+         -> RNASeq S ( Either (SomeTags 'Fastq)
+                              (SomeTags 'Fastq, SomeTags 'Fastq) )
          -> WorkflowConfig config (
-                Either (RNASeq S (File '[] 'Bam, File '[] 'Bam))
-                       (RNASeq S (File '[PairedEnd] 'Bam, File '[PairedEnd] 'Bam)) )
-rnaAlign input = do
+                RNASeq S ( Either (File '[] 'Bam, Maybe (File '[] 'Bam))
+                    (File '[PairedEnd] 'Bam, Maybe (File '[PairedEnd] 'Bam))))
+rnaAlign transcriptome input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
-    liftIO $ case input of
-        Left e -> if (runIdentity (e^.replicates) ^. files) `hasTag` Gzip
-            then starAlign (dir, ".bam") idx (starCores .= 4) (Left $
-                e & replicates.traverse.files %~ fromSomeTags
-                    :: Either (RNASeq S (File '[Gzip] 'Fastq))
-                              (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
-            else starAlign (dir, ".bam") idx (starCores .= 4) (Left $
-                e & replicates.traverse.files %~ fromSomeTags
-                    :: Either (RNASeq S (File '[] 'Fastq))
-                              (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
-        Right e -> do
-            let (f_a, f_b) = runIdentity (e^.replicates) ^. files
-            if f_a `hasTag` Gzip && f_b `hasTag` Gzip
-                then starAlign (dir, ".bam") idx (starCores .= 4) ( Right $
-                    e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
-                        :: Either (RNASeq S (File '[] 'Fastq))
-                                  (RNASeq S (File '[Gzip] 'Fastq, File '[Gzip] 'Fastq)) )
-                else starAlign (dir, ".bam") idx (starCores .= 4) ( Right $
-                    e & replicates.traverse.files %~ bimap fromSomeTags fromSomeTags
-                        :: Either (RNASeq S (File '[] 'Fastq))
-                                  (RNASeq S (File '[] 'Fastq, File '[] 'Fastq)) )
+    let outputGenome = printf "%s/%s_rep%d_genome.bam" dir (T.unpack $ input^.eid)
+            (runIdentity (input^.replicates) ^. number)
+        outputTranscriptome = printf "%s/%s_rep%d_transcriptome.bam" dir
+            (T.unpack $ input^.eid) (runIdentity (input^.replicates) ^. number)
+        opt = defaultSTAROpts & starCores .~ 4 & starTranscriptome .~
+            if transcriptome then Just outputTranscriptome else Nothing
+        f (Left fl) = if fl `hasTag` Gzip
+            then let fl' = Left $ fromSomeTags fl ::
+                        Either (File '[Gzip] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+                 in starAlign outputGenome idx fl' opt
+            else let fl' = Left $ fromSomeTags fl ::
+                        Either (File '[] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+                 in starAlign outputGenome idx fl' opt
+        f (Right (f1, f2)) = if f1 `hasTag` Gzip && f2 `hasTag` Gzip
+            then let fl' = Right (fromSomeTags f1, fromSomeTags f2) ::
+                        Either (File '[] 'Fastq) (File '[Gzip] 'Fastq, File '[Gzip] 'Fastq)
+                 in starAlign outputGenome idx fl' opt
+            else let fl' = Right (fromSomeTags f1, fromSomeTags f2) ::
+                        Either (File '[] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+                 in starAlign outputGenome idx fl' opt
+    input & replicates.traverse.files %%~ liftIO . f
 
 rnaDownloadData :: RNASeqConfig config
                 => [RNASeqWithSomeFile]
@@ -107,29 +106,21 @@ rnaDownloadData dat = do
     dir <- asks _rnaseq_output_dir >>= getPath . (<> (asDir "/Download"))
     liftIO $ dat & traverse.replicates.traverse.files.traverse %%~ downloadFiles dir
 
-rnaGetFastq :: [RNASeqWithSomeFile]
-            -> [ Either (RNASeq S (SomeTags 'Fastq))
-                        (RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq))
-               ]
-rnaGetFastq inputs = concatMap split $ concatMap split $ concatMap split $
-    inputs & mapped.replicates.mapped.files %~ f
-  where
-    f fls = map (bimap castFile (bimap castFile castFile)) $
-        filter (either (\x -> getFileType x == Fastq) g) fls
-      where
-        g (x,y) = getFileType x == Fastq && getFileType y == Fastq
-
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
-               => Either (RNASeq S (File tags1 'Bam))
-                         (RNASeq S (File tags2 'Bam))
+               => RNASeq S ( Either (File tags1 'Bam)
+                                    (File tags2 'Bam) )
                -> WorkflowConfig config (RNASeq S
                     (File '[GeneQuant] 'Tsv, File '[TranscriptQuant] 'Tsv))
 quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_rsem_index)
-    let fun :: SingI tag => RNASeq S (File tag 'Bam) -> _
-        fun = rsemQuant dir idx (rsemCores .= 4)
-    liftIO $ either fun fun input
+    let output = printf "%s/%s_rep%d.bam" dir (T.unpack $ input^.eid)
+            (runIdentity (input^.replicates) ^. number)
+    input & replicates.traverse.files %%~ liftIO . either
+        (\x -> rsemQuant output idx x opt)
+        (\x -> rsemQuant output idx x opt)
+  where
+    opt = defaultRSEMOpts & rsemCores .~ 4
 
 -- | Retrieve gene names
 geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
