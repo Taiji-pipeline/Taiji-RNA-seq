@@ -5,8 +5,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Taiji.Pipeline.RNASeq.DropSeq.DeBarcode
-    ( tagAndFilter
+    ( deBarcode
     , countBarcodeBaseFreq
+    , dnaToInt
+    , intToDna
     ) where
 
 import           Bio.Data.Experiment
@@ -71,17 +73,17 @@ posBaseCount n = do
     MU.unsafeFreeze mat
 {-# INLINE posBaseCount #-}
 
-tagAndFilter :: DropSeqConfig config
-             => RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq)
-             -> WorkflowConfig config ( RNASeq S
+deBarcode :: DropSeqConfig config
+          => RNASeq S (SomeTags 'Fastq, SomeTags 'Fastq)
+          -> WorkflowConfig config ( RNASeq S
                     ( File '[Gzip] 'Fastq
                     , File '[] 'Other
                     , File '[] 'Other ) )
-tagAndFilter dropseq = do
+deBarcode dropseq = do
     outdir <- asks _dropSeq_output_dir >>= getPath
     lenCellBc <- asks _dropSeq_cell_barcode_length
     lenMolBc <- asks _dropSeq_molecular_barcode_length
-    let output = printf "%s/%s_tagged_filt.fastq.gz" outdir
+    let output = printf "%s/%s_debarcode.fastq.gz" outdir
             (T.unpack $ dropseq^.eid)
         flCellBc = printf "%s/%s_cell_barcode_stats.tsv" outdir
             (T.unpack $ dropseq^.eid)
@@ -93,24 +95,24 @@ tagAndFilter dropseq = do
     if flRead1 `hasTag` Gzip && flRead2 `hasTag` Gzip
         then let f1 = fromSomeTags flRead1 :: File '[Gzip] 'Fastq
                  f2 = fromSomeTags flRead2 :: File '[Gzip] 'Fastq
-             in liftIO $ tagAndFilterHelp f1 f2 lenCellBc lenMolBc output flCellBc flMolBc
+             in liftIO $ deBarcodeHelp f1 f2 lenCellBc lenMolBc output flCellBc flMolBc
         else let f1 = fromSomeTags flRead1 :: File '[] 'Fastq
                  f2 = fromSomeTags flRead2 :: File '[] 'Fastq
-             in liftIO $ tagAndFilterHelp f1 f2 lenCellBc lenMolBc output flCellBc flMolBc
+             in liftIO $ deBarcodeHelp f1 f2 lenCellBc lenMolBc output flCellBc flMolBc
     return $ dropseq & replicates.mapped.files .~ fl
   where
     (flRead1, flRead2) = runIdentity (dropseq^.replicates) ^. files
 
-tagAndFilterHelp :: (SingI tags1, SingI tags2)
-                 => File tags1 'Fastq
-                 -> File tags2 'Fastq
-                 -> Int      -- ^ Cell barcode
-                 -> Int      -- ^ Molecular barcode
-                 -> FilePath  -- ^ output Fastq
-                 -> FilePath  -- ^ cell map
-                 -> FilePath  -- ^ mol map
-                 -> IO ()
-tagAndFilterHelp flRead1 flRead2 lenCellBc lenMolBc output flCellBc flMolBc = do
+deBarcodeHelp :: (SingI tags1, SingI tags2)
+              => File tags1 'Fastq
+              -> File tags2 'Fastq
+              -> Int      -- ^ Cell barcode
+              -> Int      -- ^ Molecular barcode
+              -> FilePath  -- ^ output Fastq
+              -> FilePath  -- ^ cell map
+              -> FilePath  -- ^ mol map
+              -> IO ()
+deBarcodeHelp flRead1 flRead2 lenCellBc lenMolBc output flCellBc flMolBc = do
     let taggedFastq = zipSources (sourceFastq flRead1) (sourceFastq flRead2) .|
             tagging lenCellBc lenMolBc
     runResourceT $ runConduit $ zipSources (iterateC (+1) (0::Int)) taggedFastq .|
@@ -123,20 +125,21 @@ tagAndFilterHelp flRead1 flRead2 lenCellBc lenMolBc output flCellBc flMolBc = do
     changeName (idx, x) = case x of
         Nothing -> []
         Just ((cellBc, molBc), (_,b,c,d)) ->
-            let name = B.intercalate ":" [B.pack $ show idx, cellBc, molBc]
+            let name = "@" <> B.intercalate ":"
+                    (map (B.pack . show) [cellBc, molBc, idx])
             in [name, b, c, d]
     writeBarCodeStats (cellBcMap, molBcMap) = liftIO $ do
         B.writeFile flCellBc $ B.unlines $
-            map (\(a,b) -> a <> "\t" <> B.pack (show b)) $
+            map (\(a,b) -> intToDna lenCellBc a <> "\t" <> B.pack (show b)) $
             sortBy (flip (comparing snd)) $ M.toList cellBcMap
         B.writeFile flMolBc $ B.unlines $
-            map (\(a,b) -> a <> "\t" <> B.pack (show b)) $
+            map (\(a,b) -> intToDna lenMolBc a <> "\t" <> B.pack (show b)) $
             sortBy (flip (comparing snd)) $ M.toList molBcMap
     mkBarCodeMap m (_, Nothing) = m
     mkBarCodeMap (!cellBcMap, !molBcMap) (_, Just ((cellBc, molBc), _)) =
         ( M.insertWith (+) cellBc (1::Int) cellBcMap
         , M.insertWith (+) molBc (1::Int) molBcMap )
-{-# INLINE tagAndFilterHelp #-}
+{-# INLINE deBarcodeHelp #-}
 
 dnaToInt :: B.ByteString -> Int
 dnaToInt = fst . B.foldl' f (0, 1)
@@ -149,8 +152,27 @@ dnaToInt = fst . B.foldl' f (0, 1)
     f _ _          = error "Unexpected character!"
 {-# INLINE dnaToInt #-}
 
+intToDna :: Int   -- ^ length of the resulting bytestring
+         -> Int
+         -> B.ByteString
+intToDna n = B.pack . reverse . go 1 []
+  where
+    go !i !acc !x
+        | m == 0 && i >= n = c : acc
+        | otherwise = go (i+1) (c:acc) m
+      where
+        c = case x `mod` 5 of
+            0 -> 'A'
+            1 -> 'C'
+            2 -> 'G'
+            3 -> 'T'
+            4 -> 'N'
+            _ -> undefined
+        m = x `div` 5
+{-# INLINE intToDna #-}
+
 type TaggedFastq = Maybe
-    ( (B.ByteString, B.ByteString)
+    ( (Int, Int)
     , (B.ByteString, B.ByteString, B.ByteString, B.ByteString) )
 
 tagging :: Monad m
@@ -175,13 +197,13 @@ getBarCodes :: Int   -- ^ Length of cell barcode
             -> Int   -- ^ Length of molecular barcode
             -> B.ByteString
             -> B.ByteString
-            -> Maybe (B.ByteString, B.ByteString)
+            -> Maybe (Int, Int)
 getBarCodes n1 n2 fastqSeq fastqSeqQual =
     let (cb, mb) = (B.take n1 fastqSeq, B.take n2 $ B.drop n1 fastqSeq)
         (cb_q, mb_q) = (B.take n1 fastqSeqQual, B.take n2 $ B.drop n1 fastqSeqQual)
     in if nBelowQ 10 cb_q > 1 || nBelowQ 10 mb_q > 1
         then Nothing
-        else Just (cb, mb)
+        else Just (dnaToInt cb, dnaToInt mb)
 {-# INLINE getBarCodes #-}
 
 nBelowQ :: Int -> BS.ByteString -> Int

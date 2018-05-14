@@ -2,7 +2,11 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
-module Taiji.Pipeline.RNASeq (builder) where
+module Taiji.Pipeline.RNASeq
+    ( builder
+    , Classic.RNASeqConfig(..)
+    , DropSeq.DropSeqConfig(..)
+    ) where
 
 import           Scientific.Workflow
 

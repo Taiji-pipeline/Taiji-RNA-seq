@@ -23,6 +23,8 @@ library
                        Taiji.Pipeline.RNASeq.Classic.Functions
                        Taiji.Pipeline.RNASeq.Classic.Config
                        Taiji.Pipeline.RNASeq.DropSeq
+                       Taiji.Pipeline.RNASeq.DropSeq.Functions
+                       Taiji.Pipeline.RNASeq.DropSeq.QC
                        Taiji.Pipeline.RNASeq.DropSeq.DeBarcode
                        Taiji.Pipeline.RNASeq.DropSeq.Config
   build-depends:       base >= 4.7 && < 5
@@ -42,8 +44,11 @@ library
                      , mtl
                      , singletons
                      , text
+                     , HsHTSLib
   default-language:    Haskell2010
   ghc-options:       -Wall
+                     -fno-warn-unticked-promoted-constructors
+                     -fno-warn-partial-type-signatures
 
 executable taiji-rna-seq
   hs-source-dirs:      app

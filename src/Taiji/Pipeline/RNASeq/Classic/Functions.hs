@@ -15,14 +15,10 @@ module Taiji.Pipeline.RNASeq.Classic.Functions
     ) where
 
 import           Bio.Data.Experiment
-import           Bio.Data.Experiment.Parser
-import           Bio.Pipeline.CallPeaks
 import           Bio.Pipeline.Download
 import           Bio.Pipeline.NGS
 import           Bio.Pipeline.NGS.RSEM
 import           Bio.Pipeline.NGS.STAR
-import           Bio.Pipeline.NGS.Utils
-import           Bio.Pipeline.Report
 import           Bio.Pipeline.Utils
 import           Bio.RealWorld.GENCODE
 import           Bio.Utils.Misc                       (readDouble)
@@ -30,19 +26,16 @@ import           Control.Lens
 import           Control.Monad                        (forM)
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Reader                 (asks)
-import           Data.Bifunctor                       (bimap, second)
-import           Data.Bitraversable                   (bitraverse)
+import           Data.Bifunctor                       (second)
 import qualified Data.ByteString.Char8                as B
 import           Data.CaseInsensitive                 (CI, mk, original)
-import           Data.Coerce                          (coerce)
 import           Data.Double.Conversion.ByteString    (toShortest)
-import           Data.Either                          (lefts, rights)
+import           Data.Either                          (lefts)
 import qualified Data.HashMap.Strict                  as M
 import qualified Data.HashSet                         as S
 import           Data.List
 import           Data.List.Ordered                    (nubSort)
-import           Data.Maybe                           (fromJust, fromMaybe,
-                                                       mapMaybe)
+import           Data.Maybe                           (fromJust)
 import           Data.Monoid                          ((<>))
 import           Data.Promotion.Prelude.List          (Elem)
 import           Data.Singletons                      (SingI)
@@ -68,34 +61,31 @@ rnaMkIndex input
             return input
 
 rnaAlign :: RNASeqConfig config
-         => Bool  -- ^ Whether to output transcriptome
-         -> RNASeq S ( Either (SomeTags 'Fastq)
+         => RNASeq S ( Either (SomeTags 'Fastq)
                               (SomeTags 'Fastq, SomeTags 'Fastq) )
          -> WorkflowConfig config (
                 RNASeq S ( Either (File '[] 'Bam, Maybe (File '[] 'Bam))
                     (File '[PairedEnd] 'Bam, Maybe (File '[PairedEnd] 'Bam))))
-rnaAlign transcriptome input = do
+rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
     let outputGenome = printf "%s/%s_rep%d_genome.bam" dir (T.unpack $ input^.eid)
             (runIdentity (input^.replicates) ^. number)
         outputTranscriptome = printf "%s/%s_rep%d_transcriptome.bam" dir
             (T.unpack $ input^.eid) (runIdentity (input^.replicates) ^. number)
-        opt = defaultSTAROpts & starCores .~ 4 & starTranscriptome .~
-            if transcriptome then Just outputTranscriptome else Nothing
+        opt = defaultSTAROpts & starCores .~ 4
+                              & starTranscriptome .~ Just outputTranscriptome
         f (Left fl) = if fl `hasTag` Gzip
-            then let fl' = Left $ fromSomeTags fl ::
-                        Either (File '[Gzip] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+            then let fl' = Left $ fromSomeTags fl :: _ (_ '[Gzip] _) _
                  in starAlign outputGenome idx fl' opt
-            else let fl' = Left $ fromSomeTags fl ::
-                        Either (File '[] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+            else let fl' = Left $ fromSomeTags fl :: _ (_ '[] _) _
                  in starAlign outputGenome idx fl' opt
         f (Right (f1, f2)) = if f1 `hasTag` Gzip && f2 `hasTag` Gzip
             then let fl' = Right (fromSomeTags f1, fromSomeTags f2) ::
-                        Either (File '[] 'Fastq) (File '[Gzip] 'Fastq, File '[Gzip] 'Fastq)
+                        _ _ (_ '[Gzip] _, _)
                  in starAlign outputGenome idx fl' opt
             else let fl' = Right (fromSomeTags f1, fromSomeTags f2) ::
-                        Either (File '[] 'Fastq) (File '[] 'Fastq, File '[] 'Fastq)
+                        _ _ (_ '[] _, _)
                  in starAlign outputGenome idx fl' opt
     input & replicates.traverse.files %%~ liftIO . f
 

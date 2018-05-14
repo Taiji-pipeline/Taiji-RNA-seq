@@ -1,25 +1,24 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Main where
 
 import           Bio.Pipeline.Utils
-import           Control.Lens                         ((.=))
-import           Data.Aeson                           (FromJSON, ToJSON)
+import           Control.Lens          ((.=))
+import           Data.Aeson            (FromJSON, ToJSON)
 import           Data.Default
-import           GHC.Generics                         (Generic)
+import           Data.Maybe            (fromJust)
+import           GHC.Generics          (Generic)
 import           Scientific.Workflow
 
-import           Taiji.Pipeline.RNASeq                (builder)
-import           Taiji.Pipeline.RNASeq.Classic.Config
-import           Taiji.Pipeline.RNASeq.DropSeq.Config
+import           Taiji.Pipeline.RNASeq
 
 data RNASeqOpts = RNASeqOpts
-    { outputDir      :: Directory
-    , starIndex      :: Maybe FilePath
-    , rsemIndex      :: Maybe FilePath
+    { output_dir      :: Directory
+    , star_index      :: Maybe FilePath
+    , rsem_index      :: Maybe FilePath
     , genome         :: Maybe FilePath
     , input          :: FilePath
     , annotation     :: Maybe FilePath
@@ -32,9 +31,9 @@ instance ToJSON RNASeqOpts
 
 instance Default RNASeqOpts where
     def = RNASeqOpts
-        { outputDir = asDir "output"
-        , starIndex = Nothing
-        , rsemIndex = Nothing
+        { output_dir = asDir "output"
+        , star_index = Nothing
+        , rsem_index = Nothing
         , genome = Nothing
         , input = "input.yml"
         , annotation = Nothing
@@ -43,18 +42,21 @@ instance Default RNASeqOpts where
         }
 
 instance RNASeqConfig RNASeqOpts where
-    _rnaseq_output_dir = outputDir
-    _rnaseq_star_index = starIndex
-    _rnaseq_rsem_index = rsemIndex
+    _rnaseq_output_dir = output_dir
+    _rnaseq_star_index = star_index
+    _rnaseq_rsem_index = rsem_index
     _rnaseq_genome_fasta = genome
     _rnaseq_input = input
     _rnaseq_annotation = annotation
 
 instance DropSeqConfig RNASeqOpts where
     _dropSeq_input = input
-    _dropSeq_output_dir = outputDir
+    _dropSeq_output_dir = output_dir
     _dropSeq_cell_barcode_length = cellBarcodeLen
     _dropSeq_molecular_barcode_length = molBarcodeLen
+    _dropSeq_star_index = fromJust . star_index
+    _dropSeq_annotation = fromJust . annotation
+    _dropSeq_genome_fasta = fromJust . genome
 
 -- | Instantiate the "ATACSeqConfig".
 initialization :: () -> WorkflowConfig RNASeqOpts ()

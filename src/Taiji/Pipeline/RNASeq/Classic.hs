@@ -3,7 +3,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Taiji.Pipeline.RNASeq.Classic (builder) where
+module Taiji.Pipeline.RNASeq.Classic
+    ( builder
+    , RNASeqConfig(..)
+    ) where
 
 import           Bio.Data.Experiment
 import           Bio.Data.Experiment.Parser
@@ -31,7 +34,7 @@ builder = do
     nodeS "Make_Index" 'rnaMkIndex $ do
         remoteParam .= "--mem=40000 -p gpu"  -- slurm
         -- remoteParam .= "-l vmem=40G"  -- sge
-    nodePS 1 "Align" [| rnaAlign True |] $
+    nodePS 1 "Align" 'rnaAlign $
         remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"  -- slurm
         -- remoteParam .= "-l vmem=10G -pe smp 4"  -- sge
     nodePS 1 "Quant" [| \input -> do
