@@ -47,9 +47,6 @@ builder = do
     nodePS 1 "Align" [| \x -> dropSeqAlign $ x & replicates.mapped.files %~
         (\(a,_,_) -> a)
         |] $ remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
-    nodePS 1 "Filter_Bam" [| \x -> do
-        dir <- asks _dropSeq_output_dir >>= getPath
-        liftIO $ filterBam (dir, "_filt.bam") x
-        |] $ return ()
+    nodePS 1 "Filter_Bam" 'filterSortBam $ return ()
     nodePS 1 "Barcode_Stat_Aligned" 'barcodeStat $ return ()
     path ["Tag_Fastq", "Make_Index", "Align", "Filter_Bam", "Barcode_Stat_Aligned"]

@@ -10,10 +10,10 @@ packages:
 extra-deps:
 
 - git:     https://github.com/Taiji-pipeline/bio-pipelines.git
-  commit:  f69ff124ee21ab404d91e7e6e5fd04fc5d0a2ec0
+  commit:  24404a5551db0f0fca3f05df63adde2648ac73f2
 
 - git:     https://github.com/Taiji-pipeline/bio-experiments.git
-  commit:  ad9ec54c892ee2942e2314f7982712e18c25ce99
+  commit:  e2ad377101e178c2ff59592c3eea3a696859f61f
 
 - git:     https://github.com/kaizhang/SciFlow.git
   commit:  a9eed834d5f6db685b95887b715293f6bf2c6b59
