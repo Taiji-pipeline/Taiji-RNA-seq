@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Taiji.Pipeline.RNASeq.DropSeq.QC
     (barcodeStat) where
@@ -14,11 +14,11 @@ import           Conduit
 import           Control.Lens
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Reader                 (asks)
-import Data.Ord (comparing)
 import qualified Data.ByteString.Char8                as B
 import qualified Data.HashMap.Strict                  as M
 import           Data.List
-import           Data.Monoid                          ((<>))
+import           Data.Ord                             (comparing)
+import           Data.Serialize                       (encode)
 import qualified Data.Text                            as T
 import           Scientific.Workflow
 import           Text.Printf                          (printf)
@@ -27,15 +27,13 @@ import           Taiji.Pipeline.RNASeq.DropSeq.Config
 
 barcodeStat :: DropSeqConfig config
             => RNASeq S (File tags 'Bam)
-            -> WorkflowConfig config (RNASeq S (File '[] 'Tsv))
+            -> WorkflowConfig config (RNASeq S (File '[] 'Other))
 barcodeStat input = do
     dir <- asks _dropSeq_output_dir >>= getPath
     let f x = do
-            B.writeFile output $ B.unlines $
-                map (\(a,b) -> B.pack (show a) <> "\t" <> B.pack (show b)) $
-                sortBy (flip (comparing snd)) $ M.toList x
+            B.writeFile output $ encode $ sortBy (flip (comparing snd)) $ M.toList x
             return $ location .~ output $ emptyFile
-        output = printf "%s/%s_rep%d_barcode_stat.txt" dir (T.unpack $ input^.eid)
+        output = printf "%s/%s_rep%d_barcode_stat.bin" dir (T.unpack $ input^.eid)
             (runIdentity (input^.replicates) ^. number)
     input & replicates.traverse.files %%~ (\x -> liftIO $ fun x >>= f)
   where

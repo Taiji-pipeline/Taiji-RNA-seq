@@ -8,7 +8,6 @@ module Taiji.Pipeline.RNASeq.DropSeq
 
 import           Bio.Data.Experiment
 import           Bio.Data.Experiment.Parser
-import           Bio.Pipeline.NGS
 import           Control.Lens
 import           Control.Monad.IO.Class                  (liftIO)
 import           Control.Monad.Reader                    (asks)
@@ -50,3 +49,8 @@ builder = do
     nodePS 1 "Filter_Bam" 'filterSortBam $ return ()
     nodePS 1 "Barcode_Stat_Aligned" 'barcodeStat $ return ()
     path ["Tag_Fastq", "Make_Index", "Align", "Filter_Bam", "Barcode_Stat_Aligned"]
+
+    node' "Quantification_Prep" [| \(x, y) -> zipExp x y |] $ submitToRemote .= Just False
+    nodePS 1 "Quantification" 'dropSeqQuantification $ return ()
+    ["Filter_Bam", "Barcode_Stat_Aligned"] ~> "Quantification_Prep"
+    path ["Quantification_Prep", "Quantification"]

@@ -35,17 +35,20 @@ library
                      , case-insensitive
                      , conduit
                      , conduit-extra
+                     , containers
+                     , cereal
                      , matrices
                      , double-conversion
-                     , unordered-containers
-                     , SciFlow
                      , data-ordlist
+                     , HsHTSLib
+                     , IntervalMap
                      , lens
                      , mtl
                      , singletons
-                     , text
-                     , HsHTSLib
+                     , SciFlow >= 0.6.2
                      , temporary
+                     , text
+                     , unordered-containers
   default-language:    Haskell2010
   ghc-options:       -Wall
                      -fno-warn-unticked-promoted-constructors
@@ -64,7 +67,7 @@ executable taiji-rna-seq
                      , lens
                      , aeson
                      , bio-pipelines
-                     , SciFlow
+                     , SciFlow >= 0.6.2
                      , data-default
   default-language:    Haskell2010
 
