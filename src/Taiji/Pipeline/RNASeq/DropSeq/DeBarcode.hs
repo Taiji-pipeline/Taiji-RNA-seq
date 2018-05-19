@@ -49,7 +49,7 @@ countBarcodeBaseFreq e = do
             linesUnboundedAsciiC .| mapC f .| posBaseCount lenMolBc
         return (e^.eid, (MU.toLists mat1, MU.toLists mat2))
   where
-    (cellBc, molBc) = runIdentity (e^.replicates) ^. files
+    (cellBc, molBc) = e^.replicates._2.files
     f x = let [a, b] = B.split '\t' x
           in (a, readInt b)
 
@@ -101,7 +101,7 @@ deBarcode dropseq = do
              in liftIO $ deBarcodeHelp f1 f2 lenCellBc lenMolBc output flCellBc flMolBc
     return $ dropseq & replicates.mapped.files .~ fl
   where
-    (flRead1, flRead2) = runIdentity (dropseq^.replicates) ^. files
+    (flRead1, flRead2) = dropseq^.replicates._2.files
 
 deBarcodeHelp :: (SingI tags1, SingI tags2)
               => File tags1 'Fastq

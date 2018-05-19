@@ -34,7 +34,7 @@ barcodeStat input = do
             B.writeFile output $ encode $ sortBy (flip (comparing snd)) $ M.toList x
             return $ location .~ output $ emptyFile
         output = printf "%s/%s_rep%d_barcode_stat.bin" dir (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
     input & replicates.traverse.files %%~ (\x -> liftIO $ fun x >>= f)
   where
     fun fl = withBamFile (fl^.location) $ \h -> runConduit $

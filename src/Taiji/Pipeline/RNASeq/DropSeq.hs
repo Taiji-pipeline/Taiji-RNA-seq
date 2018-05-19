@@ -31,7 +31,7 @@ builder = do
 
     node' "Get_Fastq" [|
         map (\x -> x & replicates.mapped.files %~ fromRight undefined) .
-        filter (\x -> isRight $ runIdentity (x^.replicates) ^. files ) .
+        filter (\x -> isRight $ x^.replicates._2.files ) .
         rnaGetFastq
         |] $ submitToRemote .= Just False
     nodePS 1 "Tag_Fastq" 'deBarcode $ remoteParam .= "--mem=20000 -p gpu"

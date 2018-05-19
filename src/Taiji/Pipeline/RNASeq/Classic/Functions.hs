@@ -16,7 +16,6 @@ module Taiji.Pipeline.RNASeq.Classic.Functions
 
 import           Bio.Data.Experiment
 import           Bio.Pipeline.Download
-import           Bio.Pipeline.NGS
 import           Bio.Pipeline.NGS.RSEM
 import           Bio.Pipeline.NGS.STAR
 import           Bio.Pipeline.Utils
@@ -70,9 +69,9 @@ rnaAlign input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_star_index)
     let outputGenome = printf "%s/%s_rep%d_genome.bam" dir (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
         outputTranscriptome = printf "%s/%s_rep%d_transcriptome.bam" dir
-            (T.unpack $ input^.eid) (runIdentity (input^.replicates) ^. number)
+            (T.unpack $ input^.eid) (input^.replicates._1)
         opt = defaultSTAROpts & starCores .~ 4
                               & starTranscriptome .~ Just outputTranscriptome
         f (Left fl) = if fl `hasTag` Gzip
@@ -105,7 +104,7 @@ quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
     idx <- asks (fromJust . _rnaseq_rsem_index)
     let output = printf "%s/%s_rep%d.bam" dir (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
     input & replicates.traverse.files %%~ liftIO . either
         (\x -> rsemQuant output idx x opt)
         (\x -> rsemQuant output idx x opt)
@@ -122,25 +121,26 @@ geneId2Name (ori_input, quantifications) = do
     liftIO $ do
         id2Name <- fmap (M.fromList . map (\x -> (geneId x, geneName x))) $
             readGenes anno_fl
-        let prefix = outdir ++ "/"
-            suffix = "_gene_quant.tsv"
-            getExp filtFn = concatMap split $ concatMap split $
+        let getExp filtFn = concatMap split $ concatMap split $
                 ori_input & mapped.replicates.mapped.files %~
                     map fromSomeFile . filter filtFn . lefts
-
+            process fun input = do
+                let output = printf "%s/%s_rep%d_gene_quant.tsv" outdir
+                        (T.unpack $ input^.eid) (input^.replicates._1)
+                input & replicates.traverse.files %%~ fun output
             convertTaiji out fl = do
                 geneId2Name_ [6] True id2Name (fl^.location) out
                 return $ location .~ out $ emptyFile
-        quantifications' <- mapM (mapFileWithDefName prefix suffix convertTaiji) quantifications
+        quantifications' <- mapM (process convertTaiji) quantifications
 
         let encodeExpr = getExp $ \x -> x `hasTag` GeneQuant && x `hasTag` ENCODE
-        encodeExpr' <- mapM (mapFileWithDefName prefix suffix convertTaiji) encodeExpr
+        encodeExpr' <- mapM (process convertTaiji) encodeExpr
 
         let customizedExpr = getExp (\x -> x `hasTag` GeneQuant && not (x `hasTag` ENCODE))
             convertCustom out fl = do
                 geneId2Name_ [2] False id2Name (fl^.location) out
                 return $ location .~ out $ emptyFile
-        customizedExpr' <- mapM (mapFileWithDefName prefix suffix convertCustom) customizedExpr
+        customizedExpr' <- mapM (process convertCustom) customizedExpr
 
         return $ quantifications' ++ encodeExpr' ++ customizedExpr'
 
@@ -172,7 +172,7 @@ geneId2Name_ idx has_header id2Name input output = do
 readExpr :: [RNASeq S (File '[GeneQuant] 'Tsv)]
          -> IO [(T.Text, [[(CI B.ByteString, Double)]])]
 readExpr quantifications = forM quantifications $ \e -> do
-    c <- B.readFile $ runIdentity (e^.replicates) ^. files.location
+    c <- B.readFile $ e^.replicates._2.files.location
     let result = map (\xs ->
             let fs = B.split '\t' xs in (mk $ head fs, readDouble $ fs!!1)) $
             tail $ B.lines c

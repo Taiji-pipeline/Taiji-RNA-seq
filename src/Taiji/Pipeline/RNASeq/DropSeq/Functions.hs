@@ -60,7 +60,7 @@ dropSeqAlign input = do
     dir <- asks _dropSeq_output_dir >>= getPath
     idx <- asks _dropSeq_star_index
     let outputGenome = printf "%s/%s_rep%d_genome.bam" dir (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
         f fl = starAlign outputGenome idx (Left fl) opt >>=
             return . fst . fromLeft undefined
     input & replicates.traverse.files %%~ liftIO . f
@@ -73,7 +73,7 @@ filterSortBam :: DropSeqConfig config
 filterSortBam input = do
     dir <- asks _dropSeq_output_dir >>= getPath
     let output = printf "%s/%s_rep%d_filt_srt.bam" dir (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
     input & replicates.traverse.files %%~ liftIO . ( \fl ->
         withTempFile "./" "tmp_file." $ \tmp _ ->
             filterBam "./" tmp fl >>= sortBamByName "./" output )
@@ -83,7 +83,7 @@ dropSeqQuantification :: DropSeqConfig config
                       -> WorkflowConfig config (RNASeq S [File '[] 'Tsv])
 dropSeqQuantification input = do
     let dirname = asDir $ printf "%s_rep%d" (T.unpack $ input^.eid)
-            (runIdentity (input^.replicates) ^. number)
+            (input^.replicates._1)
     dir <- asks ((<> "/Quantification/" <> dirname) . _dropSeq_output_dir) >>= getPath
     anno_f <- asks _dropSeq_annotation
     genes <- liftIO $ readGenes anno_f
