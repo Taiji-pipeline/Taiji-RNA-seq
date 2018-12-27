@@ -1,4 +1,4 @@
-resolver: lts-11.5
+resolver: lts-12.24
 
 flags:
   Taiji-RNA-seq:
@@ -10,13 +10,13 @@ packages:
 extra-deps:
 
 - git:     https://github.com/Taiji-pipeline/bio-pipelines.git
-  commit:  f582814c9151cba26ebe73ef685c68e8de115d6a
+  commit:  607bbb44785320d4d0963ed0fc4793f262c0942c
 
 - git:     https://github.com/Taiji-pipeline/bio-experiments.git
-  commit:  8d9deaef85b0311d3fe58f3b4cf21efe5e5bf151
+  commit:  19edc88b4bbc7a9ff29ed5bca5d0acf6e2e864b9
 
 - git:     https://github.com/kaizhang/bioinformatics-toolkit.git
-  commit:  54aec84485f32b6e822b050c55de9886edefc7c2
+  commit:  4d54eab41f76f6fd5a0ffbea9fd52e0b8b6ee829
   subdirs:
     - bioinformatics-toolkit
     
@@ -27,6 +27,3 @@ extra-deps:
 - drmaa-0.2.0
 - clustering-0.4.0
 - SciFlow-0.6.2
-
-- graphviz-2999.19.0.0
-- fgl-5.5.4.0
