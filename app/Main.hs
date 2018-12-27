@@ -6,19 +6,20 @@
 module Main where
 
 import           Bio.Pipeline.Utils
-import           Control.Lens          ((.=))
-import           Data.Aeson            (FromJSON, ToJSON)
+import           Control.Lens                  ((.=))
+import           Data.Aeson                    (FromJSON, ToJSON)
 import           Data.Default
-import           Data.Maybe            (fromJust)
-import           GHC.Generics          (Generic)
+import           Data.Maybe                    (fromJust)
+import           GHC.Generics                  (Generic)
 import           Scientific.Workflow
 
-import           Taiji.Pipeline.RNASeq
+import qualified Taiji.Pipeline.RNASeq.Classic as Classic
+import qualified Taiji.Pipeline.RNASeq.DropSeq as DropSeq
 
 data RNASeqOpts = RNASeqOpts
-    { output_dir      :: Directory
-    , star_index      :: Maybe FilePath
-    , rsem_index      :: Maybe FilePath
+    { output_dir     :: Directory
+    , star_index     :: Maybe FilePath
+    , rsem_index     :: Maybe FilePath
     , genome         :: Maybe FilePath
     , input          :: FilePath
     , annotation     :: Maybe FilePath
@@ -41,7 +42,7 @@ instance Default RNASeqOpts where
         , molBarcodeLen = 8
         }
 
-instance RNASeqConfig RNASeqOpts where
+instance Classic.RNASeqConfig RNASeqOpts where
     _rnaseq_output_dir = output_dir
     _rnaseq_star_index = star_index
     _rnaseq_rsem_index = rsem_index
@@ -49,7 +50,7 @@ instance RNASeqConfig RNASeqOpts where
     _rnaseq_input = input
     _rnaseq_annotation = annotation
 
-instance DropSeqConfig RNASeqOpts where
+instance DropSeq.DropSeqConfig RNASeqOpts where
     _dropSeq_input = input
     _dropSeq_output_dir = output_dir
     _dropSeq_cell_barcode_length = cellBarcodeLen
@@ -58,10 +59,10 @@ instance DropSeqConfig RNASeqOpts where
     _dropSeq_annotation = fromJust . annotation
     _dropSeq_genome_fasta = fromJust . genome
 
--- | Instantiate the "ATACSeqConfig".
-initialization :: () -> WorkflowConfig RNASeqOpts ()
-initialization _ = return ()
-
 mainWith defaultMainOpts
-    { programHeader = "Taiji-RNA-Seq", workflowConfigType = Just ''RNASeqOpts }
-    builder
+    { programHeader = "Taiji-RNA-Seq"
+    , workflowConfigType = Just ''RNASeqOpts } $ do
+        namespace "Classic" $ do
+            Classic.inputReader "RNA-seq"
+            Classic.builder
+        namespace "DropSeq" DropSeq.builder

@@ -48,7 +48,8 @@ builder = do
         |] $ remoteParam .= "--ntasks-per-node=4 --mem=40000 -p gpu"
     nodePS 1 "Filter_Bam" 'filterSortBam $ return ()
     nodePS 1 "Barcode_Stat_Aligned" 'barcodeStat $ return ()
-    path ["Tag_Fastq", "Make_Index", "Align", "Filter_Bam", "Barcode_Stat_Aligned"]
+    nodeP 1 "Barcode_Correct" 'barcodeCorrect$ return ()
+    path ["Tag_Fastq", "Make_Index", "Align", "Filter_Bam", "Barcode_Stat_Aligned", "Barcode_Correct"]
 
     node' "Quantification_Prep" [| \(x, y) -> zipExp x y |] $ submitToRemote .= Just False
     nodePS 1 "Quantification" 'dropSeqQuantification $ return ()

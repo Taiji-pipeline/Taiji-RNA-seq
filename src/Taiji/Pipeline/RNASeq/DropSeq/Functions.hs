@@ -132,7 +132,6 @@ quantify dir bcSet annotation = do
             total = foldl' (+) 0 result'
         B.writeFile output $ B.unlines $ map
             (\(a,b) -> original a <> "\t" <> B.pack (show b)) $ M.toList result'
-
         return $ emptyFile & location .~ output
                            & info .~ [ ("cell id", T.pack $ show cellBc)
                                      , ("total reads", T.pack $ show total) ]

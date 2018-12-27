@@ -17,8 +17,7 @@ Flag exe
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Taiji.Pipeline.RNASeq
-                       Taiji.Pipeline.RNASeq.Common
+  exposed-modules:     Taiji.Pipeline.RNASeq.Common
                        Taiji.Pipeline.RNASeq.Classic
                        Taiji.Pipeline.RNASeq.Classic.Functions
                        Taiji.Pipeline.RNASeq.Classic.Config
@@ -40,6 +39,7 @@ library
                      , matrices
                      , double-conversion
                      , data-ordlist
+                     , haskell-igraph >= 0.7.0
                      , HsHTSLib
                      , IntervalMap
                      , lens
