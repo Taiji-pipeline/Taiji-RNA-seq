@@ -1,11 +1,11 @@
 name:                Taiji-RNA-seq
-version:             0.1.0
+version:             0.2.0
 homepage:            https://github.com/githubuser/Taiji-RNA-seq#readme
 license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
-copyright:           (c) 2017-2018 Kai Zhang
+copyright:           (c) 2017-2019 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
@@ -30,7 +30,7 @@ library
                      , bytestring
                      , bio-pipelines
                      , bio-experiments
-                     , bioinformatics-toolkit >= 0.5.0
+                     , bioinformatics-toolkit >= 0.6.0
                      , case-insensitive
                      , conduit
                      , conduit-extra
@@ -44,7 +44,7 @@ library
                      , IntervalMap
                      , lens
                      , mtl
-                     , singletons
+                     , singletons >= 2.5
                      , SciFlow >= 0.6.2
                      , temporary
                      , text

@@ -36,7 +36,7 @@ import           Data.List
 import           Data.List.Ordered                    (nubSort)
 import           Data.Maybe                           (fromJust)
 import           Data.Monoid                          ((<>))
-import           Data.Promotion.Prelude.List          (Elem)
+import           Data.Singletons.Prelude.List          (Elem)
 import           Data.Singletons                      (SingI)
 import qualified Data.Text                            as T
 import           Scientific.Workflow

@@ -180,17 +180,21 @@ tagging :: Monad m
         -> Int
         -> ConduitT (B.ByteString, B.ByteString) TaggedFastq m ()
 tagging lenCellBc lenMolBc = do
-    l1 <- await
-    case l1 of
-        Just (_, name) -> do
-            Just (sequ, l2) <- await
-            Just (_, l3) <- await
-            Just (qual, l4) <- await
-            case getBarCodes lenCellBc lenMolBc sequ qual of
-                Just bc -> yield $ Just (bc, (name, l2, l3, l4))
-                Nothing -> yield Nothing
-            tagging lenCellBc lenMolBc
+    x1 <- await
+    x2 <- await
+    x3 <- await
+    x4 <- await
+    let res = do
+            (_, name) <- x1
+            (sequ, l2) <- x2
+            (_, l3) <- x3
+            (qual, l4) <- x4
+            return $ case getBarCodes lenCellBc lenMolBc sequ qual of
+                Just bc -> Just (bc, (name, l2, l3, l4))
+                Nothing -> Nothing
+    case res of
         Nothing -> return ()
+        Just r -> yield r >> tagging lenCellBc lenMolBc
 {-# INLINE tagging #-}
 
 getBarCodes :: Int   -- ^ Length of cell barcode
