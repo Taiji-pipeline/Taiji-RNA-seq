@@ -36,7 +36,7 @@ inputReader key = do
         forM_ es $ \e -> e & replicates.itraversed<.files %%@~ ( \i fls ->
             when (length fls > 1) $ error $ printf
                 "replicate %d in \"%s\" contains more than 2 files"
-                (i :: Int) (T.unpack $ e^.eid)
+                i (T.unpack $ e^.eid)
             )
         return es
         |] $ do
