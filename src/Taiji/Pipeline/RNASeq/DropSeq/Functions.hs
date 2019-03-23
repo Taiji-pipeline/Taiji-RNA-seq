@@ -14,7 +14,6 @@ import           Bio.Data.Bam
 import           Bio.Data.Bed
 import           Bio.Data.Experiment
 import           Bio.HTS
-import           Bio.HTS.Types                        (FileHeader (..))
 import           Bio.Pipeline.NGS.STAR
 import           Bio.Pipeline.NGS.Utils
 import           Bio.Pipeline.Utils
@@ -23,7 +22,7 @@ import           Bio.Utils.Misc                       (readInt)
 import           Conduit
 import           Control.Lens
 import           Control.Monad.IO.Class               (liftIO)
-import           Control.Monad.Reader                 (ask, asks)
+import           Control.Monad.Reader                 (asks)
 import qualified Data.ByteString.Char8                as B
 import           Data.CaseInsensitive                 (CI, original)
 import           Data.Either                          (either, fromLeft)
@@ -92,12 +91,14 @@ dropSeqQuantification input = do
     input & replicates.traverse.files %%~ liftIO . ( \(bam, bcStat) -> do
         bc <- S.fromList . fst . unzip . filter ((>(10000::Int)) . snd) .
             either error id . decode <$> B.readFile (bcStat^.location)
-        withBamFile (bam^.location) $ \h ->
-            runConduit $ readBam h .| quantify dir bc annotation )
+        hdr <- getBamHeader $ bam^.location
+        runResourceT $ runConduit $ streamBam (bam^.location) .|
+            quantify dir bc annotation hdr )
 
-quantify :: FilePath -> S.IntSet -> BEDTree (HS.HashSet (CI B.ByteString))
-         -> ConduitT Bam o HeaderState [File '[] 'Tsv]
-quantify dir bcSet annotation = do
+quantify :: MonadIO m
+         => FilePath -> S.IntSet -> BEDTree (HS.HashSet (CI B.ByteString))
+         -> BAMHeader -> ConduitT BAM o m [File '[] 'Tsv]
+quantify dir bcSet annotation hdr = do
     (acc, result, cur) <- foldMC fun ([], M.empty, -1)
     r <- outputResult cur result
     return $ r : acc
@@ -116,12 +117,11 @@ quantify dir bcSet annotation = do
             return (r:acc, result', cellBc)
       where
         (cellBc, molBc) = getBC b
-    getBC b = let [cellBc, molBc, _] = B.split ':' $ qName b
+    getBC b = let [cellBc, molBc, _] = B.split ':' $ queryName b
               in (readInt cellBc, readInt molBc)
     update molBc bam result = do
-        BamHeader hdr <- lift ask
-        let bed = asBed (fromJust $ getChr hdr bam) (fromIntegral $ position bam)
-                (fromIntegral $ endPos bam) :: BED3
+        let bed = asBed (fromJust $ refName hdr bam) (fromIntegral $ startLoc bam)
+                (fromIntegral $ endLoc bam) :: BED3
             f Nothing  = Just $ S.singleton molBc
             f (Just x) = Just $ S.insert molBc x
         return $ foldl' (\m x -> M.alter f x m) result $ concatMap HS.toList $

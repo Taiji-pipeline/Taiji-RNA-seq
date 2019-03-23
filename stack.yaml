@@ -1,4 +1,4 @@
-resolver: nightly-2019-01-07
+resolver: nightly-2019-03-14
 
 flags:
   Taiji-RNA-seq:
@@ -10,20 +10,17 @@ packages:
 extra-deps:
 
 - git:     https://github.com/Taiji-pipeline/bio-pipelines.git
-  commit:  00a1e7e19da99850bee05a3c17fdba9695893e3e
+  commit:  cd55b0cb3f2f82bba4e9c76a53e05568249a4e1f
 
 - git:     https://github.com/Taiji-pipeline/bio-experiments.git
   commit:  049f1e93b611c01e9afc2b6a1010802e07a39af5
 
-- git:     https://github.com/kaizhang/bioinformatics-toolkit.git
-  commit:  c28588943e61e4d1ae9e282270e466f349d6e8b7
-  subdirs:
-    - bioinformatics-toolkit
     
 - git:     https://github.com/kaizhang/haskell-igraph.git
   commit:  e9db8aad4ca005257a464a5eff0e5ff15aa761b2
 
-- HsHTSLib-1.3.2.4
+- bioinformatics-toolkit-0.6.0
+- HsHTSLib-1.9.2
 - drmaa-0.2.0
-- clustering-0.4.0
+- clustering-0.4.1
 - SciFlow-0.6.2

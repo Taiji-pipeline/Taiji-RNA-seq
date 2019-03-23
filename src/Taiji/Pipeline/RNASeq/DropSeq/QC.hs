@@ -10,7 +10,7 @@ module Taiji.Pipeline.RNASeq.DropSeq.QC
 
 import           Bio.Data.Bam
 import           Bio.Data.Experiment
-import           Bio.HTS                              (qName)
+import           Bio.HTS                              (queryName)
 import           Bio.Pipeline.Utils
 import           Bio.Utils.Misc                       (readInt)
 import           Conduit
@@ -81,8 +81,8 @@ barcodeStat input = do
         B.writeFile output $ encode $ sortBy (flip (comparing snd)) $ M.toList r
         return $ location .~ output $ emptyFile )
   where
-    fun fl = withBamFile (fl^.location) $ \h -> runConduit $
-        readBam h .| foldlC f M.empty
+    fun fl = runResourceT $ runConduit $ streamBam (fl^.location) .|
+        foldlC f M.empty
       where
-        f m x = let [cellBc, _, _] = B.split ':' $ qName x
+        f m x = let [cellBc, _, _] = B.split ':' $ queryName x
                 in M.insertWith (+) (readInt cellBc) (1::Int) m
