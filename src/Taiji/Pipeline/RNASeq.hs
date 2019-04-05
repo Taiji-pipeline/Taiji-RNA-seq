@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Taiji.Pipeline.RNASeq.Classic
+module Taiji.Pipeline.RNASeq
     ( inputReader
     , builder
     , RNASeqConfig(..)
@@ -21,9 +21,8 @@ import qualified Data.Text                               as T
 import           Scientific.Workflow
 import           Text.Printf                             (printf)
 
-import           Taiji.Pipeline.RNASeq.Classic.Config
-import           Taiji.Pipeline.RNASeq.Classic.Functions
-import           Taiji.Pipeline.RNASeq.Common
+import           Taiji.Pipeline.RNASeq.Config
+import           Taiji.Pipeline.RNASeq.Functions
 
 inputReader :: String    -- ^ The key
             -> Builder ()

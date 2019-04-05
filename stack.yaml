@@ -10,16 +10,19 @@ packages:
 extra-deps:
 
 - git:     https://github.com/Taiji-pipeline/bio-pipelines.git
-  commit:  cd55b0cb3f2f82bba4e9c76a53e05568249a4e1f
+  commit:  bd10c445832a3f3bdf82b57ddf1224397b78390b
 
 - git:     https://github.com/Taiji-pipeline/bio-experiments.git
-  commit:  049f1e93b611c01e9afc2b6a1010802e07a39af5
+  commit:  ebd2608d4cc759db7f43a7cbd125b656bd113494
 
-    
 - git:     https://github.com/kaizhang/haskell-igraph.git
   commit:  e9db8aad4ca005257a464a5eff0e5ff15aa761b2
 
-- bioinformatics-toolkit-0.6.0
+- git:     https://github.com/kaizhang/bioinformatics-toolkit.git
+  commit:  d1ce0f73c04c77edd674cad92904789f5fd46409
+  subdirs: 
+    - bioinformatics-toolkit
+
 - HsHTSLib-1.9.2
 - drmaa-0.2.0
 - clustering-0.4.1

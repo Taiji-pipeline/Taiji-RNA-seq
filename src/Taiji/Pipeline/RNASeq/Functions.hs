@@ -5,8 +5,9 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell       #-}
-module Taiji.Pipeline.RNASeq.Classic.Functions
-    ( rnaMkIndex
+module Taiji.Pipeline.RNASeq.Functions
+    ( rnaGetFastq
+    , rnaMkIndex
     , rnaDownloadData
     , rnaAlign
     , quantification
@@ -42,9 +43,21 @@ import qualified Data.Text                            as T
 import           Scientific.Workflow
 import           Text.Printf                          (printf)
 
-import           Taiji.Pipeline.RNASeq.Classic.Config
+import           Taiji.Pipeline.RNASeq.Config
 
 type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
+
+rnaGetFastq :: [ RNASeq N [Either SomeFile (SomeFile, SomeFile)] ]
+            -> [ RNASeq S ( Either (SomeTags 'Fastq)
+                                   (SomeTags 'Fastq, SomeTags 'Fastq) )
+               ]
+rnaGetFastq inputs = concatMap split $ concatMap split $
+    inputs & mapped.replicates.mapped.files %~ f
+  where
+    f fls = map (bimap castFile (bimap castFile castFile)) $
+        filter (either (\x -> getFileType x == Fastq) g) fls
+      where
+        g (x,y) = getFileType x == Fastq && getFileType y == Fastq
 
 rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
 rnaMkIndex input

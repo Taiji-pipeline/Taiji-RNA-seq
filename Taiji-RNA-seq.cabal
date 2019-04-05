@@ -17,15 +17,10 @@ Flag exe
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Taiji.Pipeline.RNASeq.Common
-                       Taiji.Pipeline.RNASeq.Classic
-                       Taiji.Pipeline.RNASeq.Classic.Functions
-                       Taiji.Pipeline.RNASeq.Classic.Config
-                       Taiji.Pipeline.RNASeq.DropSeq
-                       Taiji.Pipeline.RNASeq.DropSeq.Functions
-                       Taiji.Pipeline.RNASeq.DropSeq.QC
-                       Taiji.Pipeline.RNASeq.DropSeq.DeBarcode
-                       Taiji.Pipeline.RNASeq.DropSeq.Config
+  exposed-modules:     Taiji.Pipeline.RNASeq
+                       Taiji.Pipeline.RNASeq.Functions
+                       Taiji.Pipeline.RNASeq.Config
+
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , bio-pipelines
@@ -45,6 +40,7 @@ library
                      , lens
                      , mtl
                      , singletons >= 2.5
+                     , shelly
                      , SciFlow >= 0.6.2
                      , temporary
                      , text
