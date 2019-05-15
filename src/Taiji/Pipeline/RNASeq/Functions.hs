@@ -129,6 +129,7 @@ quantification input = do
 geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
             => ([RNASeqWithSomeFile], [RNASeq S (File tags 'Tsv)])
             -> WorkflowConfig config [RNASeq S (File '[GeneQuant] 'Tsv)]
+geneId2Name ([], []) = return []
 geneId2Name (ori_input, quantifications) = do
     outdir <- asks _rnaseq_output_dir >>= getPath
     anno_fl <- asks (fromJust . _rnaseq_annotation)
