@@ -24,8 +24,7 @@ import           Bio.RealWorld.GENCODE
 import           Bio.Utils.Misc                       (readDouble)
 import           Control.Lens
 import           Control.Monad                        (forM)
-import           Control.Monad.IO.Class               (liftIO)
-import           Control.Monad.Reader                 (asks)
+import           Control.Monad.Reader                 (asks, ReaderT, liftIO)
 import           Data.Bifunctor                       (second)
 import qualified Data.ByteString.Char8                as B
 import           Data.CaseInsensitive                 (CI, mk, original)
@@ -40,7 +39,6 @@ import           Data.Monoid                          ((<>))
 import           Data.Singletons.Prelude.List          (Elem)
 import           Data.Singletons                      (SingI)
 import qualified Data.Text                            as T
-import           Scientific.Workflow
 import           Text.Printf                          (printf)
 
 import           Taiji.Pipeline.RNASeq.Config
@@ -59,7 +57,7 @@ rnaGetFastq inputs = concatMap split $ concatMap split $
       where
         g (x,y) = getFileType x == Fastq && getFileType y == Fastq
 
-rnaMkIndex :: RNASeqConfig config => [a] -> WorkflowConfig config [a]
+rnaMkIndex :: RNASeqConfig config => [a] -> ReaderT config IO [a]
 rnaMkIndex input
     | null input = return input
     | otherwise = do
@@ -75,7 +73,7 @@ rnaMkIndex input
 rnaAlign :: RNASeqConfig config
          => RNASeq S ( Either (SomeTags 'Fastq)
                               (SomeTags 'Fastq, SomeTags 'Fastq) )
-         -> WorkflowConfig config (
+         -> ReaderT config IO (
                 RNASeq S ( Either (File '[] 'Bam, Maybe (File '[] 'Bam))
                     (File '[PairedEnd] 'Bam, Maybe (File '[PairedEnd] 'Bam))))
 rnaAlign input = do
@@ -103,7 +101,7 @@ rnaAlign input = do
 
 rnaDownloadData :: RNASeqConfig config
                 => [RNASeqWithSomeFile]
-                -> WorkflowConfig config [RNASeqWithSomeFile]
+                -> ReaderT config IO [RNASeqWithSomeFile]
 rnaDownloadData dat = dat & traverse.replicates.traverse.files.traverse %%~
     (\fl -> do
         dir <- asks _rnaseq_output_dir >>= getPath . (<> (asDir "/Download"))
@@ -112,7 +110,7 @@ rnaDownloadData dat = dat & traverse.replicates.traverse.files.traverse %%~
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
                => RNASeq S ( Either (File tags1 'Bam)
                                     (File tags2 'Bam) )
-               -> WorkflowConfig config (RNASeq S
+               -> ReaderT config IO (RNASeq S
                     (File '[GeneQuant] 'Tsv, File '[TranscriptQuant] 'Tsv))
 quantification input = do
     dir <- asks _rnaseq_output_dir >>= getPath
@@ -128,7 +126,7 @@ quantification input = do
 -- | Retrieve gene names
 geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
             => ([RNASeqWithSomeFile], [RNASeq S (File tags 'Tsv)])
-            -> WorkflowConfig config [RNASeq S (File '[GeneQuant] 'Tsv)]
+            -> ReaderT config IO [RNASeq S (File '[GeneQuant] 'Tsv)]
 geneId2Name ([], []) = return []
 geneId2Name (ori_input, quantifications) = do
     outdir <- asks _rnaseq_output_dir >>= getPath
@@ -197,7 +195,7 @@ readExpr quantifications = forM quantifications $ \e -> do
 -- | Combine RNA expression data into a table and output
 mkTable :: RNASeqConfig config
         => [RNASeq S (File '[GeneQuant] 'Tsv)]
-        -> WorkflowConfig config (Maybe (File '[] 'Tsv))
+        -> ReaderT config IO (Maybe (File '[] 'Tsv))
 mkTable es = do
     results <- liftIO $ readExpr es
     if null results

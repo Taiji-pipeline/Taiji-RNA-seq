@@ -7,11 +7,15 @@ module Main where
 
 import           Bio.Pipeline.Utils
 import           Control.Lens                  ((.=))
-import           Data.Aeson                    (FromJSON, ToJSON)
-import           Data.Default
+import           Data.Aeson                    (FromJSON)
 import           Data.Maybe                    (fromJust)
+import Data.Binary (Binary)
 import           GHC.Generics                  (Generic)
-import           Scientific.Workflow
+
+import           Control.Workflow
+import qualified Control.Workflow.Coordinator.Drmaa as D
+import Control.Workflow.Main
+import Data.Proxy (Proxy(..))
 
 import Taiji.Pipeline.RNASeq
 
@@ -27,19 +31,7 @@ data RNASeqOpts = RNASeqOpts
     } deriving (Generic)
 
 instance FromJSON RNASeqOpts
-instance ToJSON RNASeqOpts
-
-instance Default RNASeqOpts where
-    def = RNASeqOpts
-        { output_dir = asDir "output"
-        , star_index = Nothing
-        , rsem_index = Nothing
-        , genome = Nothing
-        , input = "input.yml"
-        , annotation = Nothing
-        , cellBarcodeLen = 12
-        , molBarcodeLen = 8
-        }
+instance Binary RNASeqOpts
 
 instance RNASeqConfig RNASeqOpts where
     _rnaseq_output_dir = output_dir
@@ -49,8 +41,15 @@ instance RNASeqConfig RNASeqOpts where
     _rnaseq_input = input
     _rnaseq_annotation = annotation
 
-mainWith defaultMainOpts
-    { programHeader = "Taiji-RNA-Seq"
-    , workflowConfigType = Just ''RNASeqOpts } $ do
-        inputReader "RNA-seq"
-        builder
+decodeDrmaa :: String -> Int -> FilePath -> IO D.DrmaaConfig
+decodeDrmaa ip port _ = D.getDefaultDrmaaConfig
+    ["remote", "--ip", ip, "--port", show port]
+
+build "wf" [t| SciFlow RNASeqOpts |] $ inputReader "RNA-seq" >> builder
+
+main :: IO ()
+main = defaultMain "" cmd wf
+  where
+    cmd = [ runParser decodeDrmaa
+          , viewParser
+          , remoteParser (Proxy :: Proxy D.Drmaa) ]
