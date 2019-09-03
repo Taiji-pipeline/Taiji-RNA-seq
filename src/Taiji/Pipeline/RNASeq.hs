@@ -13,6 +13,7 @@ import           Bio.Data.Experiment.Parser
 import           Data.Bifunctor                          (bimap)
 import qualified Data.Text                               as T
 import           Control.Workflow
+import qualified Data.IntMap.Strict as M
 
 import           Taiji.Pipeline.RNASeq.Types
 import           Taiji.Pipeline.RNASeq.Functions
@@ -26,11 +27,10 @@ inputReader key = do
         es <- liftIO $ if ".tsv" == reverse (take 4 $ reverse input)
             then readRNASeqTSV input key
             else readRNASeq input key
-        forM_ es $ \e -> e & replicates.itraversed<.files %%@~ ( \i fls ->
-            when (length fls > 1) $ error $ printf
+        forM_ es $ \e -> forM_ (M.toList $ e^.replicates) $ \(i, rep) ->
+            when (length (rep^.files) > 1) $ error $ printf
                 "replicate %d in \"%s\" contains more than 2 files"
                 i (T.unpack $ e^.eid)
-            )
         return es
         |] $ doc .= "Read RNA-seq data information from input file."
     ["Read_Input"] ~> "Download_Data"
