@@ -9,20 +9,14 @@ module Taiji.Pipeline.RNASeq
     , RNASeqConfig(..)
     ) where
 
-import           Bio.Data.Experiment
 import           Bio.Data.Experiment.Parser
-import           Control.Lens
-import           Control.Monad                           (forM_, when)
-import           Control.Monad.IO.Class                  (liftIO)
-import           Control.Monad.Reader                    (asks)
 import           Data.Bifunctor                          (bimap)
-import           Data.Maybe                              (fromJust)
 import qualified Data.Text                               as T
 import           Control.Workflow
-import           Text.Printf                             (printf)
 
-import           Taiji.Pipeline.RNASeq.Config
+import           Taiji.Pipeline.RNASeq.Types
 import           Taiji.Pipeline.RNASeq.Functions
+import Taiji.Prelude
 
 inputReader :: String    -- ^ The key
             -> Builder ()

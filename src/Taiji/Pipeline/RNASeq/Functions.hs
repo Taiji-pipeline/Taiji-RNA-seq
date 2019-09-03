@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedLists       #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TemplateHaskell       #-}
 module Taiji.Pipeline.RNASeq.Functions
     ( rnaGetFastq
     , rnaMkIndex
@@ -15,33 +14,20 @@ module Taiji.Pipeline.RNASeq.Functions
     , mkTable
     ) where
 
-import           Bio.Data.Experiment
-import           Bio.Pipeline.Download
-import           Bio.Pipeline.NGS.RSEM
-import           Bio.Pipeline.NGS.STAR
-import           Bio.Pipeline.Utils
 import           Bio.RealWorld.GENCODE
-import           Bio.Utils.Misc                       (readDouble)
-import           Control.Lens
-import           Control.Monad                        (forM)
-import           Control.Monad.Reader                 (asks, ReaderT, liftIO)
-import           Data.Bifunctor                       (second)
+import           Data.Bifunctor                       (second, bimap)
 import qualified Data.ByteString.Char8                as B
 import           Data.CaseInsensitive                 (CI, mk, original)
-import           Data.Double.Conversion.ByteString    (toShortest)
 import           Data.Either                          (lefts)
 import qualified Data.HashMap.Strict                  as M
 import qualified Data.HashSet                         as S
-import           Data.List
 import           Data.List.Ordered                    (nubSort)
-import           Data.Maybe                           (fromJust)
-import           Data.Monoid                          ((<>))
 import           Data.Singletons.Prelude.List          (Elem)
 import           Data.Singletons                      (SingI)
 import qualified Data.Text                            as T
-import           Text.Printf                          (printf)
 
-import           Taiji.Pipeline.RNASeq.Config
+import           Taiji.Pipeline.RNASeq.Types
+import Taiji.Prelude
 
 type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
 
@@ -61,9 +47,9 @@ rnaMkIndex :: RNASeqConfig config => [a] -> ReaderT config IO [a]
 rnaMkIndex input
     | null input = return input
     | otherwise = do
-        genome <- asks (fromJust . _rnaseq_genome_fasta)
+        genome <- getGenomeFasta 
         starIndex <- asks (fromJust . _rnaseq_star_index)
-        anno <- asks (fromJust . _rnaseq_annotation)
+        anno <- getAnnotation 
         rsemIndex <- asks (fromJust . _rnaseq_rsem_index)
         liftIO $ do
             _ <- starMkIndex "STAR" starIndex [genome] anno 100
@@ -130,7 +116,7 @@ geneId2Name :: (RNASeqConfig config, Elem 'GeneQuant tags ~ 'True)
 geneId2Name ([], []) = return []
 geneId2Name (ori_input, quantifications) = do
     outdir <- asks _rnaseq_output_dir >>= getPath
-    anno_fl <- asks (fromJust . _rnaseq_annotation)
+    anno_fl <- getAnnotation
     liftIO $ do
         id2Name <- fmap (M.fromList . map (\x -> (geneId x, geneName x))) $
             readGenes anno_fl
