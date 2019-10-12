@@ -86,9 +86,9 @@ rnaAlign input = do
     input & replicates.traverse.files %%~ liftIO . f
 
 rnaDownloadData :: RNASeqConfig config
-                => [RNASeqWithSomeFile]
-                -> ReaderT config IO [RNASeqWithSomeFile]
-rnaDownloadData dat = dat & traverse.replicates.traverse.files.traverse %%~
+                => RNASeqWithSomeFile
+                -> ReaderT config IO RNASeqWithSomeFile
+rnaDownloadData dat = dat & replicates.traverse.files.traverse %%~
     (\fl -> do
         dir <- asks _rnaseq_output_dir >>= getPath . (<> (asDir "/Download"))
         liftIO $ downloadFiles dir fl )

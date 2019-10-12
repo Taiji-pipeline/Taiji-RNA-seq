@@ -37,7 +37,7 @@ inputReader key = do
 
 builder :: Builder ()
 builder = do
-    node "Download_Data" 'rnaDownloadData $ return ()
+    nodePar "Download_Data" 'rnaDownloadData $ return ()
     node "Get_Fastq" [| return . rnaGetFastq |] $ return ()
     node "Make_Index" 'rnaMkIndex $ memory .= 40
     nodePar "Align" 'rnaAlign $ do
