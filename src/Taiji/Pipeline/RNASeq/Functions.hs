@@ -28,6 +28,7 @@ import qualified Data.Text                            as T
 
 import           Taiji.Pipeline.RNASeq.Types
 import Taiji.Prelude
+import qualified Taiji.Utils.DataFrame as DF
 
 type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
 
@@ -168,44 +169,40 @@ geneId2Name_ idx has_header id2Name input output = do
     geneSet = S.fromList $ M.elems id2Name
 {-# INLINE geneId2Name_ #-}
 
-readExpr :: [RNASeq S (File '[GeneQuant] 'Tsv)]
-         -> IO [(T.Text, [[(CI B.ByteString, Double)]])]
-readExpr quantifications = forM quantifications $ \e -> do
-    c <- B.readFile $ e^.replicates._2.files.location
-    let result = map (\xs ->
-            let fs = B.split '\t' xs in (mk $ head fs, readDouble $ fs!!1)) $
-            tail $ B.lines c
-    return (fromJust $ e^.groupName, [result])
-{-# INLINE readExpr #-}
-
 -- | Combine RNA expression data into a table and output
 mkTable :: RNASeqConfig config
         => [RNASeq S (File '[GeneQuant] 'Tsv)]
         -> ReaderT config IO (Maybe (File '[] 'Tsv))
-mkTable es = do
-    results <- liftIO $ readExpr es
-    if null results
-        then return Nothing
-        else do
-            outdir <- asks _rnaseq_output_dir >>= getPath
-            let output = outdir ++ "/" ++ "expression_profile.tsv"
-                (expNames, values) = unzip $ M.toList $
-                    fmap (map (second average) . combine) $ M.fromListWith (++) $ results
-            liftIO $ B.writeFile output $ B.unlines $
-                B.pack (T.unpack $ T.intercalate "\t" $ "Name" : expNames) :
-                map (\(x,xs) -> B.intercalate "\t" $ original x : map toShortest xs)
-                    (combine values)
-            return $ Just $ location .~ output $ emptyFile
-
-combine :: [[(CI B.ByteString, Double)]] -> [(CI B.ByteString, [Double])]
-combine xs = flip map names $ \nm -> (nm, map (M.lookupDefault 0.01 nm) xs')
+mkTable [] = return Nothing
+mkTable input = do
+    outdir <- asks _rnaseq_output_dir >>= getPath
+    let output = outdir ++ "/" ++ "expression_profile.tsv"
+    liftIO $ do
+        geneNames <- getGeneName input
+        (sampleNames, vals) <- unzip <$> mapM (f geneNames) input
+        DF.writeTable output (T.pack . show) $ DF.mkDataFrame
+            (map (T.pack . B.unpack . original) geneNames) sampleNames $
+            transpose vals
+        return $ Just $ location .~ output $ emptyFile
   where
-    names = nubSort $ concatMap (fst . unzip) xs
-    xs' = map (fmap average . M.fromListWith (++) . map (second return)) xs
-{-# INLINE combine #-}
+    f genes fl = do
+        (sampleName, vals) <- readExpr fl
+        return $! (sampleName, map (\g -> M.lookupDefault 0.01 g vals) genes)
 
-average :: [Double] -> Double
-average [a,b]   = (a + b) / 2
-average [a,b,c] = (a + b + c) / 3
-average xs      = foldl1' (+) xs / fromIntegral (length xs)
-{-# INLINE average #-}
+readExpr :: RNASeq S (File '[GeneQuant] 'Tsv)
+         -> IO (T.Text, M.HashMap (CI B.ByteString) Double)
+readExpr input = do
+    c <- B.readFile $ input^.replicates._2.files.location
+    return ( fromJust $ input^.groupName
+           , M.fromListWith max $ map f $ tail $ B.lines c )
+  where
+    f xs = let fs = B.split '\t' xs in (mk $ head fs, readDouble $ fs!!1)
+{-# INLINE readExpr #-}
+
+getGeneName :: [RNASeq S (File '[GeneQuant] 'Tsv)]
+            -> IO [CI B.ByteString]
+getGeneName = fmap S.toList . foldM f S.empty
+  where
+    f names x = foldl' (flip S.insert) names . map (mk . head . B.split '\t') .
+        tail . B.lines <$> B.readFile (x^.replicates._2.files.location)
+{-# INLINE getGeneName #-}
