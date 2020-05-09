@@ -15,6 +15,7 @@ class RNASeqConfig config where
     _rnaseq_rsem_index :: config -> Maybe FilePath
     _rnaseq_input :: config -> FilePath
     _rnaseq_output_dir :: config -> Directory
+    _rnaseq_tmp_dir :: config -> Maybe FilePath
 
 getGenomeFasta :: RNASeqConfig config => ReaderT config IO FilePath
 getGenomeFasta = asks _rnaseq_genome_fasta >>= \case

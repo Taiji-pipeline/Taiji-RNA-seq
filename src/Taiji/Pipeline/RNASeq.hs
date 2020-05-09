@@ -24,7 +24,7 @@ builder = do
         liftIO $ mkInputReader input "RNA-seq" RNASeq
         |] $ doc .= "Read input data information."
     nodePar "Download_Data" 'rnaDownloadData $ return ()
-    uNode "Get_Fastq" 'rnaGetFastq
+    uNode "Get_Fastq" [| return . rnaGetFastq |]
     node "Make_Index" 'rnaMkIndex $ memory .= 40
     nodePar "Align" 'rnaAlign $ do
         nCore .= 4

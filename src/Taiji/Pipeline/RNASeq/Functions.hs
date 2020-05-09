@@ -89,10 +89,11 @@ rnaAlign input = do
 rnaDownloadData :: RNASeqConfig config
                 => RNASeqWithSomeFile
                 -> ReaderT config IO RNASeqWithSomeFile
-rnaDownloadData dat = dat & replicates.traverse.files.traverse %%~
-    (\fl -> do
+rnaDownloadData dat = do
+    tmp <- fromMaybe "./" <$> asks _rnaseq_tmp_dir
+    dat & replicates.traverse.files.traverse %%~ (\fl -> do
         dir <- asks _rnaseq_output_dir >>= getPath . (<> (asDir "/Download"))
-        liftIO $ downloadFiles dir fl )
+        liftIO $ downloadFiles dir tmp fl )
 
 quantification :: (RNASeqConfig config, SingI tags1, SingI tags2)
                => RNASeq S ( Either (File tags1 'Bam)
