@@ -28,6 +28,7 @@ import qualified Data.Text                            as T
 
 import           Taiji.Pipeline.RNASeq.Types
 import Taiji.Prelude
+import Taiji.Utils (readGenesValidated)
 import qualified Taiji.Utils.DataFrame as DF
 
 type RNASeqWithSomeFile = RNASeq N [Either SomeFile (SomeFile, SomeFile)]
@@ -121,7 +122,7 @@ geneId2Name (ori_input, quantifications) = do
     anno_fl <- getAnnotation
     liftIO $ do
         id2Name <- fmap (M.fromList . map (\x -> (geneId x, geneName x))) $
-            readGenes anno_fl
+            readGenesValidated anno_fl
         let getExp filtFn = concatMap split $ concatMap split $
                 ori_input & mapped.replicates.mapped.files %~
                     map fromSomeFile . filter filtFn . lefts
