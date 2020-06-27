@@ -181,7 +181,7 @@ mkTable input = do
     let output = outdir ++ "/" ++ "expression_profile.tsv"
     liftIO $ do
         geneNames <- getGeneName input
-        (sampleNames, vals) <- unzip <$> mapM (f geneNames) input
+        (sampleNames, vals) <- unzip . combine <$> mapM (f geneNames) input
         DF.writeTable output (T.pack . show) $ DF.mkDataFrame
             (map (T.pack . B.unpack . original) geneNames) sampleNames $
             transpose vals
@@ -190,6 +190,11 @@ mkTable input = do
     f genes fl = do
         (sampleName, vals) <- readExpr fl
         return $! (sampleName, map (\g -> M.lookupDefault 0.01 g vals) genes)
+    combine = map (\x -> (fst $ head x, map average $ transpose $ map snd x)) .
+        groupBy ((==) `on` fst) . sortBy (comparing fst)
+    average [a,b]   = (a + b) / 2
+    average [a,b,c] = (a + b + c) / 3
+    average xs      = foldl1' (+) xs / fromIntegral (length xs)
 
 readExpr :: RNASeq S (File '[GeneQuant] 'Tsv)
          -> IO (T.Text, M.HashMap (CI B.ByteString) Double)
