@@ -21,7 +21,7 @@ builder :: Builder ()
 builder = do
     node "Read_Input" [| \() -> do
         input <- asks _rnaseq_input
-        liftIO $ mkInputReader input "RNA-seq" RNASeq
+        liftIO $ mkInputReader input "RNA-seq" (\_ x -> RNASeq x)
         |] $ doc .= "Read input data information."
     nodePar "Download_Data" 'rnaDownloadData $ return ()
     uNode "Get_Fastq" [| return . rnaGetFastq |]
