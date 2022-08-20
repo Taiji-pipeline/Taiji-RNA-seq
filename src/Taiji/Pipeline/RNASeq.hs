@@ -23,10 +23,10 @@ builder = do
         input <- asks _rnaseq_input
         liftIO $ mkInputReader input "RNA-seq" (\_ x -> RNASeq x)
         |] $ doc .= "Read input data information."
-    nodePar "Download_Data" 'rnaDownloadData $ return ()
+    nodePar "Download_Data" [| rnaDownloadData |] $ return ()
     uNode "Get_Fastq" [| return . rnaGetFastq |]
-    node "Make_Index" 'rnaMkIndex $ memory .= 40
-    nodePar "Align" 'rnaAlign $ do
+    node "Make_Index" [| rnaMkIndex |] $ memory .= 40
+    nodePar "Align" [| rnaAlign |] $ do
         nCore .= 4
         memory .= 40
     nodePar "Quant" [| \input -> do
@@ -43,5 +43,5 @@ builder = do
         geneId2Name (ori, input')
         |] $ return ()
     ["Download_Data", "Quant"] ~> "Convert_ID_To_Name"
-    node "Make_Expr_Table" 'mkTable $ return ()
+    node "Make_Expr_Table" [| mkTable |] $ return ()
     ["Convert_ID_To_Name"] ~> "Make_Expr_Table"

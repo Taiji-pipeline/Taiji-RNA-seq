@@ -28,7 +28,8 @@ library
                      , case-insensitive
                      , containers
                      , data-ordlist
-                     , singletons >= 2.5
+                     , singletons >= 3.0
+                     , singletons-base
                      , shelly
                      , SciFlow >= 0.7.1
                      , text

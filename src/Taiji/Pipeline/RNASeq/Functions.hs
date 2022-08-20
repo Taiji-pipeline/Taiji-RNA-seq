@@ -22,7 +22,7 @@ import           Data.Either                          (lefts)
 import qualified Data.HashMap.Strict                  as M
 import qualified Data.HashSet                         as S
 import           Data.List.Ordered                    (nubSort)
-import           Data.Singletons.Prelude.List          (Elem)
+import           Data.List.Singletons (Elem)
 import           Data.Singletons                      (SingI)
 import qualified Data.Text                            as T
 
